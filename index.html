@@ -7,109 +7,145 @@
 <meta name="theme-color" content="#0B100E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Ефір-ШІ">
+<meta name="apple-mobile-web-app-title" content="SITREP-AI">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="fonts.css">
 <style>
-:root{--bg:#0B100E;--panel:#141C18;--line:#27342D;--tx:#E6ECE4;--mut:#AEBBB1;--dim:#7F8C83;--amb:#F2B33D;--red:#FF5A4D;--yel:#F2C94C;--blu:#5AA9FF;--grn:#4CD08A;--gry:#8A948D;
---sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+:root{--bg:#0B100E;--tx:#E6ECE4;--mut:#AEBBB1;--dim:#7F8C83;--amb:#F2B33D;--red:#FF5A4D;--yel:#F2C94C;--blu:#5AA9FF;--grn:#4CD08A;--gry:#8A948D;
+--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
+--surf:linear-gradient(180deg,#1a241f 0%,#121915 100%);--edge:#2b3a32;--hi:inset 0 1px 0 rgba(255,255,255,.08)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:var(--bg);color:var(--tx);font-family:Rubik,system-ui,sans-serif;font-size:17px;line-height:1.4;overscroll-behavior:none}
+html{background:var(--bg)}
+html,body{min-height:100%;color:var(--tx);font-family:Rubik,system-ui,sans-serif;font-size:17px;line-height:1.4;overscroll-behavior:none}
+body{background:radial-gradient(130% 55% at 50% -8%,#1a2a22 0%,#0f1613 42%,#0B100E 70%) no-repeat fixed,var(--bg)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500;letter-spacing:.06em}
-.app{max-width:920px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:calc(var(--sat) + 10px) 14px calc(var(--sab) + 104px)}
-/* верхня панель */
-.top{display:flex;align-items:center;gap:12px;padding:6px 0 12px}
-.brand{font-family:Oswald,sans-serif;font-weight:600;font-size:26px;letter-spacing:.01em;line-height:1}
-.brand small{display:block;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--amb);margin-top:4px;font-weight:500}
-.vu{display:flex;align-items:flex-end;gap:3px;height:30px;margin-left:auto}
-.vu i{width:5px;height:4px;background:#34443B;border-radius:2px;transition:height .06s linear}
-.vu.sp i{background:var(--grn)}
-.pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;padding:5px 9px;border-radius:20px;background:#1D2823;border:1px solid #2E3D35;color:var(--mut);white-space:nowrap}
-.pill.ok{color:var(--grn);border-color:#2f6b4c}.pill.warn{color:var(--amb);border-color:#7a5c1e}.pill.bad{color:var(--red);border-color:#7a302a}
+.app{max-width:920px;margin:0 auto;display:flex;flex-direction:column;padding:calc(var(--sat) + 12px) 14px calc(var(--sab) + 124px)}
+
+/* шапка */
+.top{display:flex;align-items:center;gap:12px;padding:4px 2px 10px}
+.logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(180deg,#222e28,#131a16);border:1px solid var(--edge);box-shadow:var(--hi),0 6px 16px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;gap:3px;flex:none}
+.logo i{width:4px;border-radius:2px;background:#4a5b52}
+.logo i.a{background:var(--amb);box-shadow:0 0 8px rgba(242,179,61,.55)}
+.brand{line-height:1;min-width:0}
+.brand .n1{font-family:Oswald,sans-serif;font-weight:500;font-size:15px;letter-spacing:.14em;color:var(--mut)}
+.brand .n2{font-family:Oswald,sans-serif;font-weight:600;font-size:30px;letter-spacing:.02em;margin-top:5px;white-space:nowrap;background:linear-gradient(180deg,#FFD57A,#F2B33D 60%,#D9952A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand .n2 em{font-style:normal;color:var(--tx);-webkit-text-fill-color:var(--tx)}
+.right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.vu{display:flex;align-items:flex-end;gap:3px;height:46px;padding:10px 12px;border-radius:14px;background:#0d1310;border:1px solid var(--edge);box-shadow:inset 0 2px 6px rgba(0,0,0,.6)}
+.vu i{width:4px;height:4px;background:#34443B;border-radius:2px;transition:height .06s linear}
+.vu.sp i{background:var(--grn);box-shadow:0 0 6px rgba(76,208,138,.6)}
+.lang{width:46px;height:46px;border-radius:14px;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:14px;background:var(--surf);border:1px solid var(--edge);box-shadow:var(--hi),0 3px 0 #090d0b,0 8px 16px rgba(0,0,0,.4)}
+.lang:active{transform:translateY(2px);box-shadow:var(--hi),0 1px 0 #090d0b}
+.pills{display:flex;gap:6px;padding:0 2px 12px;flex-wrap:wrap}
+.pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;padding:6px 10px;border-radius:20px;background:#121915;border:1px solid var(--edge);color:var(--mut);white-space:nowrap;display:flex;align-items:center;gap:6px}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:#55635b}
+.pill.ok::before{background:var(--grn);box-shadow:0 0 6px var(--grn)}.pill.warn::before{background:var(--amb);box-shadow:0 0 6px var(--amb)}.pill.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
+.pill.ok{color:#bfe9d2}.pill.warn{color:#f5d593}.pill.bad{color:#ffb3ac}
+
 /* зведення */
-.sum{border:2px solid var(--amb);background:#1C1A10;border-radius:14px;padding:14px 16px;margin-bottom:12px}
-.sum .lbl{font-size:12px;color:var(--amb);letter-spacing:.14em}
-.sum .main{font-family:Oswald,sans-serif;font-weight:500;font-size:24px;line-height:1.2;margin-top:6px}
+.sum{position:relative;border-radius:22px;padding:16px 18px;margin-bottom:12px;background:linear-gradient(180deg,#2a2412 0%,#1a170d 100%);border:1px solid #7a5c1e;box-shadow:inset 0 1px 0 rgba(255,220,140,.14),0 10px 28px rgba(0,0,0,.45)}
+.sum .lbl{font-size:11px;color:var(--amb);letter-spacing:.16em}
+.sum .main{font-family:Oswald,sans-serif;font-weight:500;font-size:25px;line-height:1.2;margin-top:8px}
 .sum .sub{color:var(--mut);font-size:15px;margin-top:6px}
-.sum.calm{border-color:var(--line);background:var(--panel)}.sum.calm .lbl{color:var(--dim)}
-.sum.alert{border-color:var(--red);background:#22110F}.sum.alert .lbl{color:var(--red)}
-.counts{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
-.counts span{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;color:var(--mut)}
-.counts i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.sum.calm{background:var(--surf);border-color:var(--edge);box-shadow:var(--hi),0 10px 28px rgba(0,0,0,.4)}.sum.calm .lbl{color:var(--dim)}
+.sum.alert{background:linear-gradient(180deg,#34140f 0%,#1f0d0b 100%);border-color:#a8372e;animation:glowR 2s ease-in-out infinite}
+.sum.alert .lbl{color:#ff8a80}
+.counts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.counts span{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;display:flex;align-items:center;gap:6px;color:var(--mut);background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.06);padding:5px 9px;border-radius:12px}
+.counts i{width:8px;height:8px;border-radius:50%;display:inline-block}
+@keyframes glowR{0%,100%{box-shadow:inset 0 1px 0 rgba(255,160,150,.12),0 10px 28px rgba(0,0,0,.45),0 0 0 0 rgba(255,90,77,0)}50%{box-shadow:inset 0 1px 0 rgba(255,160,150,.2),0 10px 28px rgba(0,0,0,.45),0 0 26px 2px rgba(255,90,77,.32)}}
+
 /* прогрес моделі */
-.load{display:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.load{display:none;background:var(--surf);border:1px solid var(--edge);border-radius:18px;padding:14px 16px;margin-bottom:12px;box-shadow:var(--hi)}
 .load.on{display:block}
-.bar{height:8px;background:#1D2823;border-radius:4px;overflow:hidden;margin-top:10px}
-.bar i{display:block;height:100%;width:0;background:var(--amb);transition:width .2s}
-/* фільтри */
-.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
-.chips::-webkit-scrollbar{display:none}
-.chip{min-height:48px;min-width:64px;padding:0 16px;border-radius:24px;background:#1D2823;border:1px solid #2E3D35;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:14px;color:var(--tx);white-space:nowrap}
-.chip.on{background:var(--amb);border-color:var(--amb);color:#0B100E}
+.bar{height:8px;background:#0d1310;border-radius:4px;overflow:hidden;margin-top:10px;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#D9952A,#FFD57A);border-radius:4px;transition:width .2s}
+
+/* часові зрізи — сегментований перемикач */
+.chips{display:flex;gap:4px;padding:4px;margin-bottom:12px;border-radius:26px;background:#0d1310;border:1px solid var(--edge);box-shadow:inset 0 2px 6px rgba(0,0,0,.55)}
+.chip{flex:1;min-height:48px;border-radius:22px;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;color:var(--mut);white-space:nowrap;transition:background .15s,color .15s}
+.chip.on{background:linear-gradient(180deg,#FBCB63,#E9A52B);color:#16110a;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 0 #8f6514,0 6px 14px rgba(242,179,61,.28)}
+
 /* стрічка */
-.feed{display:flex;flex-direction:column;gap:8px}
-.msg{display:block;width:100%;text-align:left;background:#121212;border-radius:12px;padding:12px 14px 12px 16px;border-left:8px solid var(--gry);min-height:56px}
+.feed{display:flex;flex-direction:column;gap:9px}
+.msg{--c:var(--gry);position:relative;display:block;width:100%;text-align:left;background:linear-gradient(180deg,#191f1c 0%,#111513 100%);border:1px solid #242d28;border-radius:18px;padding:12px 14px 13px 26px;min-height:60px;box-shadow:var(--hi),0 6px 16px rgba(0,0,0,.35)}
+.msg::before{content:"";position:absolute;left:10px;top:12px;bottom:12px;width:5px;border-radius:3px;background:var(--c);box-shadow:0 0 10px var(--c)}
+.msg:active{transform:scale(.99)}
 .msg .h{display:flex;gap:10px;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.06em;color:var(--dim)}
-.msg .h .c{margin-left:auto}
-.msg .t{font-size:18px;line-height:1.35;margin-top:4px;color:var(--tx);word-break:break-word}
+.msg .h .c{margin-left:auto;color:var(--c);padding:3px 8px;border-radius:9px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.06)}
+.msg .t{font-size:18px;line-height:1.35;margin-top:6px;color:var(--tx);word-break:break-word}
 .msg.pending .t{color:var(--dim);font-style:italic}
-.msg.playing{outline:2px solid var(--amb)}
-.msg.crit{border-left-color:var(--red)}.msg.crit .c{color:var(--red)}
-.msg.tact{border-left-color:var(--yel)}.msg.tact .c{color:var(--yel)}
-.msg.log{border-left-color:var(--blu)}.msg.log .c{color:var(--blu)}
-.msg.coord{border-left-color:var(--grn)}.msg.coord .c{color:var(--grn)}
-.msg.noise .t{color:var(--mut)}
-.e-thr{color:var(--red);font-weight:500}.e-call{color:var(--amb);font-weight:500}.e-loc{color:var(--grn);font-weight:500}.e-num{color:var(--blu);font-weight:500}
-.empty{color:var(--dim);text-align:center;padding:36px 16px;border:1px dashed var(--line);border-radius:14px}
+.msg.playing{border-color:var(--amb)}
+.msg.new{animation:in .35s ease-out both}
+.msg.crit{--c:var(--red);background:linear-gradient(180deg,#241715 0%,#151110 100%);border-color:#4a2622}
+.msg.crit.hot{animation:pulse 2s ease-in-out infinite}
+.msg.crit.hot.new{animation:in .35s ease-out both,pulse 2s ease-in-out .35s infinite}
+.msg.tact{--c:var(--yel)}.msg.log{--c:var(--blu)}.msg.coord{--c:var(--grn)}
+.msg.noise .t{color:var(--mut)}.msg.noise::before{box-shadow:none}
+@keyframes in{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{box-shadow:var(--hi),0 6px 16px rgba(0,0,0,.35),0 0 0 0 rgba(255,90,77,0);border-color:#4a2622}50%{box-shadow:var(--hi),0 6px 16px rgba(0,0,0,.35),0 0 22px 1px rgba(255,90,77,.3);border-color:#a8372e}}
+.e-thr{color:#ff7d72;font-weight:500}.e-call{color:var(--amb);font-weight:500}.e-loc{color:var(--grn);font-weight:500}.e-num{color:var(--blu);font-weight:500}
+.empty{color:var(--dim);text-align:center;padding:38px 18px;border:1px dashed #2b3a32;border-radius:22px}
 .empty b{display:block;font-family:Oswald,sans-serif;font-weight:500;font-size:22px;color:var(--tx);margin-bottom:6px}
+
 /* нижня панель */
-.dock{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 26%);padding:22px 14px calc(var(--sab) + 12px)}
-.dock .in{max-width:920px;margin:0 auto;display:flex;gap:10px;align-items:center}
-.btn{min-height:60px;border-radius:16px;background:#1D2823;border:1px solid #2E3D35;font-family:Oswald,sans-serif;font-weight:500;font-size:19px;padding:0 18px;letter-spacing:.02em}
-.btn.go{flex:1;background:var(--amb);border-color:var(--amb);color:#0B100E;font-size:22px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:12px}
-.btn.go.live{background:#22110F;border-color:var(--red);color:var(--red)}
+.dock{position:fixed;left:0;right:0;bottom:0;padding:0 12px calc(var(--sab) + 12px);pointer-events:none}
+.dock .in{pointer-events:auto;max-width:896px;margin:0 auto;display:flex;gap:10px;align-items:center;padding:10px;border-radius:30px;background:rgba(18,25,21,.78);-webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);border:1px solid rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 18px 40px rgba(0,0,0,.6)}
+.btn{min-height:60px;border-radius:22px;background:linear-gradient(180deg,#2a3730 0%,#1a231e 100%);border:1px solid #3a4a41;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 3px 0 #0a0f0c,0 8px 18px rgba(0,0,0,.4);font-family:Oswald,sans-serif;font-weight:500;font-size:18px;padding:0 18px;letter-spacing:.03em;transition:transform .06s}
+.btn:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 0 #0a0f0c}
+.btn.go{flex:1;background:linear-gradient(180deg,#FBCB63 0%,#E9A52B 100%);border-color:#f8d283;color:#16110a;font-size:22px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 3px 0 #8f6514,0 10px 26px rgba(242,179,61,.3)}
+.btn.go:active{box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 1px 0 #8f6514}
+.btn.go.live{background:linear-gradient(180deg,#3d1713 0%,#220d0b 100%);border-color:#a8372e;color:#ff8a80;box-shadow:inset 0 1px 0 rgba(255,160,150,.18),0 3px 0 #120605,0 0 22px rgba(255,90,77,.25)}
 .btn.go .dot{width:14px;height:14px;border-radius:50%;background:currentColor}
-.btn.go.live .dot{animation:pulse 1.2s infinite}
-@keyframes pulse{50%{opacity:.25}}
-.btn:disabled{opacity:.5}
+.btn.go.live .dot{animation:blink 2s ease-in-out infinite;box-shadow:0 0 10px currentColor}
+@keyframes blink{50%{opacity:.3}}
+.btn:disabled{opacity:.55}
+.btn.icon{width:60px;padding:0;font-size:22px}
+
 /* шторки */
-.sheet{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;justify-content:center;z-index:5}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center;z-index:5}
 .sheet.on{display:flex}
-.sheet .box{width:100%;max-width:920px;max-height:92%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px calc(var(--sab) + 18px)}
+.sheet .box{width:100%;max-width:920px;max-height:92%;overflow:auto;background:linear-gradient(180deg,#1b2520,#111814);border:1px solid var(--edge);border-bottom:0;border-radius:28px 28px 0 0;padding:10px 16px calc(var(--sab) + 20px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 -20px 50px rgba(0,0,0,.6);animation:up .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.grab{width:44px;height:5px;border-radius:3px;background:#3a4a41;margin:0 auto 10px}
 .sheet h2{font-family:Oswald,sans-serif;font-weight:500;font-size:26px;display:flex;align-items:center}
-.sheet h2 button{margin-left:auto;min-width:48px;min-height:48px;font-size:26px;color:var(--mut)}
-.sheet label{display:block;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.12em;color:var(--amb);margin:16px 0 6px}
-.sheet select,.sheet input[type=text],.sheet textarea{width:100%;min-height:52px;background:#0B100E;border:1px solid #2E3D35;border-radius:12px;padding:10px 12px;font-size:17px}
+.sheet h2 button{margin-left:auto;width:48px;height:48px;border-radius:50%;font-size:24px;color:var(--mut);background:#0d1310;border:1px solid var(--edge)}
+.sheet label{display:block;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;color:var(--amb);margin:18px 0 7px}
+.sheet select,.sheet input[type=text],.sheet textarea{width:100%;min-height:54px;background:#0d1310;border:1px solid var(--edge);border-radius:16px;padding:10px 14px;font-size:17px;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
 .sheet textarea{min-height:84px;resize:vertical}
 .sheet .row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
-.sheet .row .btn{flex:1;min-height:52px;font-size:17px}
-.sheet .note{color:var(--dim);font-size:14px;margin-top:8px}
-.btn.danger{border-color:#7a302a;color:var(--red)}
-pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;line-height:1.5;background:#0B100E;border:1px solid #2E3D35;border-radius:12px;padding:14px;margin-top:12px;color:var(--tx)}
-.toast{position:fixed;left:50%;bottom:calc(var(--sab) + 96px);transform:translateX(-50%);background:#22110F;border:1px solid var(--red);color:var(--tx);padding:10px 16px;border-radius:12px;font-size:15px;max-width:90%;display:none;z-index:9}
+.sheet .row .btn{flex:1;min-height:54px;font-size:17px;border-radius:18px}
+.sheet .note{color:var(--dim);font-size:14px;margin-top:12px}
+.btn.danger{border-color:#7a302a;color:#ff8a80}
+pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;line-height:1.55;background:#0d1310;border:1px solid var(--edge);border-radius:16px;padding:14px;margin-top:12px;color:var(--tx);box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
+.toast{position:fixed;left:50%;bottom:calc(var(--sab) + 110px);transform:translateX(-50%);background:rgba(34,17,15,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #a8372e;color:var(--tx);padding:11px 16px;border-radius:16px;font-size:15px;max-width:90%;display:none;z-index:9;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .toast.on{display:block}
-@media(min-width:700px){.brand{font-size:32px}.msg .t{font-size:20px}.sum .main{font-size:28px}}
+@media(min-width:700px){.brand .n2{font-size:36px}.msg .t{font-size:20px}.sum .main{font-size:29px}}
+@media(prefers-reduced-motion:reduce){.msg.crit.hot,.sum.alert,.msg.new,.btn.go.live .dot,.sheet .box{animation:none}}
 </style>
 </head>
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand">ЕФІР-ШІ<small>SITREP-AI · ПРОТОТИП</small></div>
-    <div class="vu" id="vu"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="pills"><span class="pill" id="pNet">МЕРЕЖА</span><span class="pill" id="pModel">МОДЕЛЬ —</span></div>
+    <div class="logo" aria-hidden="true"><i style="height:8px"></i><i class="a" style="height:18px"></i><i class="a" style="height:26px"></i><i class="a" style="height:14px"></i><i style="height:8px"></i></div>
+    <div class="brand"><div class="n1" id="n1">ЕФІР-ШІ</div><div class="n2">SITREP<em>·</em>AI</div></div>
+    <div class="right">
+      <div class="vu" id="vu"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <button class="lang" id="bLang" aria-label="Мова / Language">EN</button>
+    </div>
   </header>
+  <div class="pills"><span class="pill" id="pNet"></span><span class="pill" id="pModel"></span><span class="pill" id="pMic"></span></div>
 
-  <section class="load" id="load"><div class="mono" style="font-size:12px;color:var(--amb);letter-spacing:.14em">МОДЕЛЬ РОЗПІЗНАВАННЯ</div><div id="loadTxt" style="margin-top:6px">Завантаження…</div><div class="bar"><i id="loadBar"></i></div></section>
+  <section class="load" id="load"><div class="mono" style="font-size:11px;color:var(--amb);letter-spacing:.14em" data-i="modelTitle"></div><div id="loadTxt" style="margin-top:6px"></div><div class="bar"><i id="loadBar"></i></div></section>
 
-  <section class="sum calm" id="sum"><div class="lbl mono" id="sumLbl">АКТУАЛЬНЕ ЗВЕДЕННЯ · ЗАРАЗ</div><div class="main" id="sumMain">Ефір мовчить</div><div class="sub" id="sumSub">Натисніть «Слухати» — і повідомлення з’являться тут.</div><div class="counts" id="counts"></div></section>
+  <section class="sum calm" id="sum"><div class="lbl mono" id="sumLbl"></div><div class="main" id="sumMain"></div><div class="sub" id="sumSub"></div><div class="counts" id="counts"></div></section>
 
   <nav class="chips" id="chips">
-    <button class="chip on" data-w="600000">10 хв</button><button class="chip" data-w="1800000">30 хв</button><button class="chip" data-w="3600000">1 год</button><button class="chip" data-w="7200000">2 год</button><button class="chip" data-w="0">Всі</button>
+    <button class="chip on" data-w="600000" data-i="c10"></button><button class="chip" data-w="1800000" data-i="c30"></button><button class="chip" data-w="3600000" data-i="c60"></button><button class="chip" data-w="7200000" data-i="c120"></button><button class="chip" data-w="0" data-i="call"></button>
   </nav>
 
   <main class="feed" id="feed"></main>
@@ -117,35 +153,37 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
 
 <div class="dock"><div class="in">
   <button class="btn" id="bRep">SITREP</button>
-  <button class="btn go" id="bGo"><span class="dot"></span><span id="bGoT">СЛУХАТИ</span></button>
-  <button class="btn" id="bSet" aria-label="Налаштування і тест">☰</button>
+  <button class="btn go" id="bGo"><span class="dot"></span><span id="bGoT"></span></button>
+  <button class="btn icon" id="bSet" aria-label="Меню">☰</button>
 </div></div>
 
 <div class="sheet" id="shRep"><div class="box">
+  <div class="grab"></div>
   <h2>SITREP <button data-close aria-label="Закрити">×</button></h2>
   <pre class="rep" id="repTxt"></pre>
-  <div class="row"><button class="btn" id="bCopy">Копіювати</button><button class="btn" id="bShare">Поділитися</button><button class="btn" id="bJson">JSON</button></div>
+  <div class="row"><button class="btn" id="bCopy" data-i="copy"></button><button class="btn" id="bShare" data-i="share"></button><button class="btn" id="bJson">JSON</button></div>
 </div></div>
 
 <div class="sheet" id="shSet"><div class="box">
-  <h2>Тест і налаштування <button data-close aria-label="Закрити">×</button></h2>
-  <label>ТЕСТ БЕЗ РАДІОСТАНЦІЇ</label>
-  <div class="row"><button class="btn" id="bDemo">Демо-запис</button><button class="btn" id="bFile">Аудіофайл…</button></div>
+  <div class="grab"></div>
+  <h2><span data-i="setTitle"></span> <button data-close aria-label="Закрити">×</button></h2>
+  <label data-i="lTest"></label>
+  <div class="row"><button class="btn" id="bDemo" data-i="demo"></button><button class="btn" id="bFile" data-i="file"></button></div>
   <input type="file" id="file" accept="audio/*,video/*" hidden>
-  <textarea id="manual" placeholder="Або введіть повідомлення текстом, по одному в рядку" style="margin-top:10px"></textarea>
-  <div class="row"><button class="btn" id="bManual">Додати текст у стрічку</button></div>
+  <textarea id="manual" data-ip="manualPh" style="margin-top:10px"></textarea>
+  <div class="row"><button class="btn" id="bManual" data-i="addText"></button></div>
 
-  <label>МОДЕЛЬ РОЗПІЗНАВАННЯ</label>
-  <select id="sModel"><option value="onnx-community/whisper-tiny">Tiny — найшвидша, найменша</option><option value="onnx-community/whisper-base">Base — баланс, ≈ 200 МБ</option><option value="onnx-community/whisper-small">Small — точніша, найбільша</option></select>
-  <label>МОВА ЕФІРУ</label>
-  <select id="sLang"><option value="uk">Українська</option><option value="ru">Російська</option><option value="auto">Визначати автоматично</option></select>
-  <label>ПОЗИВНІ (ЧЕРЕЗ КОМУ)</label>
+  <label data-i="lModel"></label>
+  <select id="sModel"><option value="onnx-community/whisper-tiny" data-i="mTiny"></option><option value="onnx-community/whisper-base" data-i="mBase"></option><option value="onnx-community/whisper-small" data-i="mSmall"></option></select>
+  <label data-i="lLang"></label>
+  <select id="sLang"><option value="uk" data-i="spUk"></option><option value="en" data-i="spEn"></option><option value="ru" data-i="spRu"></option><option value="auto" data-i="spAuto"></option></select>
+  <label data-i="lCalls"></label>
   <input type="text" id="sCalls" autocomplete="off">
-  <label>ЗБЕРІГАТИ ЗАПИСИ</label>
-  <select id="sKeep"><option value="24">24 години</option><option value="48">48 годин</option><option value="72">72 години</option></select>
-  <label>ДАНІ</label>
-  <div class="row"><button class="btn" id="bExport">Експорт JSON</button><button class="btn danger" id="bWipe">Стерти все</button></div>
-  <p class="note" id="about">Розпізнавання і всі дані — лише на цьому пристрої. Мережа потрібна один раз, щоб завантажити модель.</p>
+  <label data-i="lKeep"></label>
+  <select id="sKeep"><option value="24" data-i="k24"></option><option value="48" data-i="k48"></option><option value="72" data-i="k72"></option></select>
+  <label data-i="lData"></label>
+  <div class="row"><button class="btn" id="bExport" data-i="export"></button><button class="btn danger" id="bWipe"></button></div>
+  <p class="note" id="about"></p>
 </div></div>
 
 <div class="toast" id="toast"></div>
