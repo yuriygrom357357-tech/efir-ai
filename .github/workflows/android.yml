@@ -14,19 +14,21 @@ jobs:
     env:
       MODEL: onnx-community/whisper-base
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: 22 }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 21 }
 
       - name: Зібрати веб-частину
         run: |
+          trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
           mkdir -p native/www
           cp -r index.html app.js rules.js asr-worker.js tap.js sw.js fonts.css manifest.webmanifest icon-192.png icon-512.png vendor fonts demo native/www/
 
       - name: Вкласти модель розпізнавання (для роботи без мережі)
         run: |
+          trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
           D=native/www/models/$MODEL
           mkdir -p $D/onnx
           B=https://huggingface.co/$MODEL/resolve/main
@@ -44,6 +46,7 @@ jobs:
       - name: Capacitor → Android-проєкт
         working-directory: native
         run: |
+          trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
           npm install
           npx cap add android
           npx cap sync android
@@ -53,21 +56,19 @@ jobs:
           # іконка
           R=android/app/src/main/res
           rm -rf $R/mipmap-anydpi-v26
-          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
-            n=${d%%:*}; s=${d##*:}
-            for f in ic_launcher ic_launcher_round ic_launcher_foreground; do
-              convert www/icon-512.png -resize ${s}x${s} $R/mipmap-$n/$f.png
-            done
-          done
+          cp -r res/. $R/
           # не стискати модель і wasm усередині APK
           printf '\nandroid { androidResources { noCompress += ["onnx", "wasm"] } }\n' >> android/app/build.gradle
 
       - name: Зібрати APK
         working-directory: native/android
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
+          ./gradlew --no-daemon assembleDebug 2>&1 | tee build.log || { grep -E "error:|FAILED|What went wrong|^> " build.log | head -8 | while read l; do echo "::error::$l"; done; exit 1; }
 
       - name: Опублікувати APK
         run: |
+          trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
           cp native/android/app/build/outputs/apk/debug/app-debug.apk efir-ai.apk
           ls -la efir-ai.apk
       - uses: softprops/action-gh-release@v2
