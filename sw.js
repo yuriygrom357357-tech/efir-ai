@@ -1,4 +1,4 @@
-const V = 'efir-v1';
+const V = 'efir-v2';
 const SHELL = ['./', 'index.html', 'app.js', 'rules.js', 'asr-worker.js', 'tap.js', 'fonts.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
   'vendor/transformers.min.js', 'vendor/ort-wasm-simd-threaded.asyncify.mjs', 'vendor/ort-wasm-simd-threaded.asyncify.wasm',
   'fonts/oswald-cyrillic-500-normal.woff2', 'fonts/oswald-cyrillic-600-normal.woff2', 'fonts/oswald-latin-500-normal.woff2', 'fonts/oswald-latin-600-normal.woff2',
@@ -17,7 +17,7 @@ self.addEventListener('fetch', e => {
     const hit = await c.match(e.request, { ignoreSearch: true });
     if (heavy && hit) return hit;
     try {
-      const r = await fetch(e.request);
+      const r = await fetch(e.request, heavy ? {} : { cache: 'no-cache' });
       if (r.ok) c.put(e.request, r.clone());
       return r;
     } catch (err) {
