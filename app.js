@@ -76,7 +76,8 @@ let toastT = 0;
 function toast(s, ms = 5000) { const t = $('#toast'); t.textContent = s; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
 
 /* ---------- повідомлення ---------- */
-const JUNK = /дякую за перегляд|спасибо за просмотр|субтитр|редактор|коректор|корректор|продовження буде|продолжение следует|підписуйтес|подписывайтес|до зустрічі|до новых встреч|amara\.org|^\W*$/i;
+const JUNK = /дякую за перегляд|спасибо за просмотр|субтитр|редактор|коректор|корректор|продовження буде|продолжение следует|підписуйтес|подписывайтес|до зустрічі|до новых встреч|amara\.org/i;
+const EMPTY = /^[^\p{L}\p{N}]*$/u;
 
 function addText(text, t = Date.now(), dur = 0, audio = null) {
   text = text.replace(/\s+/g, ' ').trim();
@@ -131,7 +132,7 @@ function transcribe(audio16k, t) {
   return new Promise((res) => {
     jobs.set(ph.id, (text, ms) => {
       msgs = msgs.filter(x => x !== ph);
-      const ok = text && !JUNK.test(text);
+      const ok = text && !EMPTY.test(text) && !JUNK.test(text);
       const m = ok ? addText(text, t, dur, wav) : null;
       if (m) m.ms = ms; else render();
       res(m);
