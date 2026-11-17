@@ -201,9 +201,9 @@ function level(rms, sp) {
 async function start() {
   const go = $('#bGo'); go.disabled = true; $('#bGoT').textContent = 'ГОТУЮ…';
   try {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    await ctx.resume();
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 1500))]);
     await ensureModel();
     await ctx.audioWorklet.addModule('tap.js');
     const seg = new Segmenter(ctx.sampleRate, (a) => transcribe(a, Date.now() - Math.round(a.length / 16)), level);
