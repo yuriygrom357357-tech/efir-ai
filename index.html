@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ефір-ШІ · SITREP-AI</title>
+<meta name="theme-color" content="#0B100E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ефір-ШІ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{--bg:#0B100E;--panel:#141C18;--line:#27342D;--tx:#E6ECE4;--mut:#AEBBB1;--dim:#7F8C83;--amb:#F2B33D;--red:#FF5A4D;--yel:#F2C94C;--blu:#5AA9FF;--grn:#4CD08A;--gry:#8A948D;
+--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--tx);font-family:Rubik,system-ui,sans-serif;font-size:17px;line-height:1.4;overscroll-behavior:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500;letter-spacing:.06em}
+.app{max-width:920px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:calc(var(--sat) + 10px) 14px calc(var(--sab) + 104px)}
+/* верхня панель */
+.top{display:flex;align-items:center;gap:12px;padding:6px 0 12px}
+.brand{font-family:Oswald,sans-serif;font-weight:600;font-size:26px;letter-spacing:.01em;line-height:1}
+.brand small{display:block;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--amb);margin-top:4px;font-weight:500}
+.vu{display:flex;align-items:flex-end;gap:3px;height:30px;margin-left:auto}
+.vu i{width:5px;height:4px;background:#34443B;border-radius:2px;transition:height .06s linear}
+.vu.sp i{background:var(--grn)}
+.pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;padding:5px 9px;border-radius:20px;background:#1D2823;border:1px solid #2E3D35;color:var(--mut);white-space:nowrap}
+.pill.ok{color:var(--grn);border-color:#2f6b4c}.pill.warn{color:var(--amb);border-color:#7a5c1e}.pill.bad{color:var(--red);border-color:#7a302a}
+/* зведення */
+.sum{border:2px solid var(--amb);background:#1C1A10;border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.sum .lbl{font-size:12px;color:var(--amb);letter-spacing:.14em}
+.sum .main{font-family:Oswald,sans-serif;font-weight:500;font-size:24px;line-height:1.2;margin-top:6px}
+.sum .sub{color:var(--mut);font-size:15px;margin-top:6px}
+.sum.calm{border-color:var(--line);background:var(--panel)}.sum.calm .lbl{color:var(--dim)}
+.sum.alert{border-color:var(--red);background:#22110F}.sum.alert .lbl{color:var(--red)}
+.counts{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
+.counts span{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;color:var(--mut)}
+.counts i{width:10px;height:10px;border-radius:3px;display:inline-block}
+/* прогрес моделі */
+.load{display:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.load.on{display:block}
+.bar{height:8px;background:#1D2823;border-radius:4px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;width:0;background:var(--amb);transition:width .2s}
+/* фільтри */
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{min-height:48px;min-width:64px;padding:0 16px;border-radius:24px;background:#1D2823;border:1px solid #2E3D35;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:14px;color:var(--tx);white-space:nowrap}
+.chip.on{background:var(--amb);border-color:var(--amb);color:#0B100E}
+/* стрічка */
+.feed{display:flex;flex-direction:column;gap:8px}
+.msg{display:block;width:100%;text-align:left;background:#121212;border-radius:12px;padding:12px 14px 12px 16px;border-left:8px solid var(--gry);min-height:56px}
+.msg .h{display:flex;gap:10px;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.06em;color:var(--dim)}
+.msg .h .c{margin-left:auto}
+.msg .t{font-size:18px;line-height:1.35;margin-top:4px;color:var(--tx);word-break:break-word}
+.msg.pending .t{color:var(--dim);font-style:italic}
+.msg.playing{outline:2px solid var(--amb)}
+.msg.crit{border-left-color:var(--red)}.msg.crit .c{color:var(--red)}
+.msg.tact{border-left-color:var(--yel)}.msg.tact .c{color:var(--yel)}
+.msg.log{border-left-color:var(--blu)}.msg.log .c{color:var(--blu)}
+.msg.coord{border-left-color:var(--grn)}.msg.coord .c{color:var(--grn)}
+.msg.noise .t{color:var(--mut)}
+.e-thr{color:var(--red);font-weight:500}.e-call{color:var(--amb);font-weight:500}.e-loc{color:var(--grn);font-weight:500}.e-num{color:var(--blu);font-weight:500}
+.empty{color:var(--dim);text-align:center;padding:36px 16px;border:1px dashed var(--line);border-radius:14px}
+.empty b{display:block;font-family:Oswald,sans-serif;font-weight:500;font-size:22px;color:var(--tx);margin-bottom:6px}
+/* нижня панель */
+.dock{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 26%);padding:22px 14px calc(var(--sab) + 12px)}
+.dock .in{max-width:920px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.btn{min-height:60px;border-radius:16px;background:#1D2823;border:1px solid #2E3D35;font-family:Oswald,sans-serif;font-weight:500;font-size:19px;padding:0 18px;letter-spacing:.02em}
+.btn.go{flex:1;background:var(--amb);border-color:var(--amb);color:#0B100E;font-size:22px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:12px}
+.btn.go.live{background:#22110F;border-color:var(--red);color:var(--red)}
+.btn.go .dot{width:14px;height:14px;border-radius:50%;background:currentColor}
+.btn.go.live .dot{animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.btn:disabled{opacity:.5}
+/* шторки */
+.sheet{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;justify-content:center;z-index:5}
+.sheet.on{display:flex}
+.sheet .box{width:100%;max-width:920px;max-height:92%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px calc(var(--sab) + 18px)}
+.sheet h2{font-family:Oswald,sans-serif;font-weight:500;font-size:26px;display:flex;align-items:center}
+.sheet h2 button{margin-left:auto;min-width:48px;min-height:48px;font-size:26px;color:var(--mut)}
+.sheet label{display:block;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.12em;color:var(--amb);margin:16px 0 6px}
+.sheet select,.sheet input[type=text],.sheet textarea{width:100%;min-height:52px;background:#0B100E;border:1px solid #2E3D35;border-radius:12px;padding:10px 12px;font-size:17px}
+.sheet textarea{min-height:84px;resize:vertical}
+.sheet .row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.sheet .row .btn{flex:1;min-height:52px;font-size:17px}
+.sheet .note{color:var(--dim);font-size:14px;margin-top:8px}
+.btn.danger{border-color:#7a302a;color:var(--red)}
+pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;line-height:1.5;background:#0B100E;border:1px solid #2E3D35;border-radius:12px;padding:14px;margin-top:12px;color:var(--tx)}
+.toast{position:fixed;left:50%;bottom:calc(var(--sab) + 96px);transform:translateX(-50%);background:#22110F;border:1px solid var(--red);color:var(--tx);padding:10px 16px;border-radius:12px;font-size:15px;max-width:90%;display:none;z-index:9}
+.toast.on{display:block}
+@media(min-width:700px){.brand{font-size:32px}.msg .t{font-size:20px}.sum .main{font-size:28px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">ЕФІР-ШІ<small>SITREP-AI · ПРОТОТИП</small></div>
+    <div class="vu" id="vu"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="pills"><span class="pill" id="pNet">МЕРЕЖА</span><span class="pill" id="pModel">МОДЕЛЬ —</span></div>
+  </header>
+
+  <section class="load" id="load"><div class="mono" style="font-size:12px;color:var(--amb);letter-spacing:.14em">МОДЕЛЬ РОЗПІЗНАВАННЯ</div><div id="loadTxt" style="margin-top:6px">Завантаження…</div><div class="bar"><i id="loadBar"></i></div></section>
+
+  <section class="sum calm" id="sum"><div class="lbl mono" id="sumLbl">АКТУАЛЬНЕ ЗВЕДЕННЯ · ЗАРАЗ</div><div class="main" id="sumMain">Ефір мовчить</div><div class="sub" id="sumSub">Натисніть «Слухати» — і повідомлення з’являться тут.</div><div class="counts" id="counts"></div></section>
+
+  <nav class="chips" id="chips">
+    <button class="chip on" data-w="600000">10 хв</button><button class="chip" data-w="1800000">30 хв</button><button class="chip" data-w="3600000">1 год</button><button class="chip" data-w="7200000">2 год</button><button class="chip" data-w="0">Всі</button>
+  </nav>
+
+  <main class="feed" id="feed"></main>
+</div>
+
+<div class="dock"><div class="in">
+  <button class="btn" id="bRep">SITREP</button>
+  <button class="btn go" id="bGo"><span class="dot"></span><span id="bGoT">СЛУХАТИ</span></button>
+  <button class="btn" id="bSet" aria-label="Налаштування і тест">☰</button>
+</div></div>
+
+<div class="sheet" id="shRep"><div class="box">
+  <h2>SITREP <button data-close aria-label="Закрити">×</button></h2>
+  <pre class="rep" id="repTxt"></pre>
+  <div class="row"><button class="btn" id="bCopy">Копіювати</button><button class="btn" id="bShare">Поділитися</button><button class="btn" id="bJson">JSON</button></div>
+</div></div>
+
+<div class="sheet" id="shSet"><div class="box">
+  <h2>Тест і налаштування <button data-close aria-label="Закрити">×</button></h2>
+  <label>ТЕСТ БЕЗ РАДІОСТАНЦІЇ</label>
+  <div class="row"><button class="btn" id="bDemo">Демо-запис</button><button class="btn" id="bFile">Аудіофайл…</button></div>
+  <input type="file" id="file" accept="audio/*,video/*" hidden>
+  <textarea id="manual" placeholder="Або введіть повідомлення текстом, по одному в рядку" style="margin-top:10px"></textarea>
+  <div class="row"><button class="btn" id="bManual">Додати текст у стрічку</button></div>
+
+  <label>МОДЕЛЬ РОЗПІЗНАВАННЯ</label>
+  <select id="sModel"><option value="onnx-community/whisper-tiny">Tiny — найшвидша, ≈ 60 МБ</option><option value="onnx-community/whisper-base">Base — баланс, ≈ 100 МБ</option><option value="onnx-community/whisper-small">Small — точніша, ≈ 300 МБ</option></select>
+  <label>МОВА ЕФІРУ</label>
+  <select id="sLang"><option value="uk">Українська</option><option value="ru">Російська</option><option value="auto">Визначати автоматично</option></select>
+  <label>ПОЗИВНІ (ЧЕРЕЗ КОМУ)</label>
+  <input type="text" id="sCalls" autocomplete="off">
+  <label>ЗБЕРІГАТИ ЗАПИСИ</label>
+  <select id="sKeep"><option value="24">24 години</option><option value="48">48 годин</option><option value="72">72 години</option></select>
+  <label>ДАНІ</label>
+  <div class="row"><button class="btn" id="bExport">Експорт JSON</button><button class="btn danger" id="bWipe">Стерти все</button></div>
+  <p class="note" id="about">Розпізнавання і всі дані — лише на цьому пристрої. Мережа потрібна один раз, щоб завантажити модель.</p>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
