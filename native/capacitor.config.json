@@ -1,0 +1,7 @@
+{
+  "appId": "ua.efirai.app",
+  "appName": "Ефір-ШІ",
+  "webDir": "www",
+  "backgroundColor": "#0B100E",
+  "android": { "backgroundColor": "#0B100E" }
+}

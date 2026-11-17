@@ -1,0 +1,81 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: apk
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      MODEL: onnx-community/whisper-base
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+
+      - name: Зібрати веб-частину
+        run: |
+          mkdir -p native/www
+          cp -r index.html app.js rules.js asr-worker.js tap.js sw.js fonts.css manifest.webmanifest icon-192.png icon-512.png vendor fonts demo native/www/
+
+      - name: Вкласти модель розпізнавання (для роботи без мережі)
+        run: |
+          D=native/www/models/$MODEL
+          mkdir -p $D/onnx
+          B=https://huggingface.co/$MODEL/resolve/main
+          for f in config.json generation_config.json preprocessor_config.json tokenizer.json tokenizer_config.json; do
+            curl -fsSL "$B/$f" -o "$D/$f"
+          done
+          for f in added_tokens.json special_tokens_map.json vocab.json merges.txt normalizer.json; do
+            curl -fsSL "$B/$f" -o "$D/$f" || rm -f "$D/$f"
+          done
+          for f in encoder_model.onnx decoder_model_merged_q4.onnx encoder_model_quantized.onnx decoder_model_merged_quantized.onnx; do
+            curl -fsSL "$B/onnx/$f" -o "$D/onnx/$f"
+          done
+          du -sh native/www/models; ls -la $D $D/onnx
+
+      - name: Capacitor → Android-проєкт
+        working-directory: native
+        run: |
+          npm install
+          npx cap add android
+          npx cap sync android
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <application#' $M
+          cat $M
+          # іконка
+          R=android/app/src/main/res
+          rm -rf $R/mipmap-anydpi-v26
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            n=${d%%:*}; s=${d##*:}
+            for f in ic_launcher ic_launcher_round ic_launcher_foreground; do
+              convert www/icon-512.png -resize ${s}x${s} $R/mipmap-$n/$f.png
+            done
+          done
+          # не стискати модель і wasm усередині APK
+          printf '\nandroid { androidResources { noCompress += ["onnx", "wasm"] } }\n' >> android/app/build.gradle
+
+      - name: Зібрати APK
+        working-directory: native/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Опублікувати APK
+        run: |
+          cp native/android/app/build/outputs/apk/debug/app-debug.apk efir-ai.apk
+          ls -la efir-ai.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Ефір-ШІ — Android APK (остання збірка)
+          body: |
+            Тестова збірка прототипу. Встановлення: завантажте `efir-ai.apk` на Android і відкрийте файл (дозвольте встановлення з цього джерела).
+            Модель розпізнавання вже всередині — мережа не потрібна. Перед оновленням видаліть попередню версію.
+          files: efir-ai.apk
+          make_latest: true
