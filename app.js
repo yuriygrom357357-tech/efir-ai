@@ -6,6 +6,7 @@ const set = Object.assign({ model: 'onnx-community/whisper-base', lang: 'uk', ca
 const saveSet = () => localStorage.setItem(SET_KEY, JSON.stringify(set));
 const calls = () => set.calls.split(',').map(s => s.trim()).filter(Boolean);
 
+const NATIVE = !!window.Capacitor;   // запущено як встановлений застосунок, модель лежить усередині
 let msgs = [];            // {id,t,text,cat,threats,dur,audio,pending}
 let win = 600000;         // активний часовий зріз, мс (0 = всі)
 let seq = 0;
@@ -103,7 +104,7 @@ function ensureModel() {
   if (modelState === 'ready') return Promise.resolve();
   if (modelWait) return modelWait;
   modelState = 'loading'; pill();
-  $('#load').classList.add('on'); $('#loadTxt').textContent = 'Готую модель. Перший раз вона завантажується з мережі, далі працює без неї.'; $('#loadBar').style.width = '0';
+  $('#load').classList.add('on'); $('#loadTxt').textContent = NATIVE ? 'Запускаю модель розпізнавання…' : 'Готую модель. Перший раз вона завантажується з мережі, далі працює без неї.'; $('#loadBar').style.width = '0';
   modelWait = new Promise((res, rej) => {
     if (!worker) {
       worker = new Worker('asr-worker.js', { type: 'module' });
@@ -119,7 +120,7 @@ function ensureModel() {
         else { const j = jobs.get(m.id); jobs.delete(m.id); if (j) j('', 0); }
       }
     };
-    worker.postMessage({ type: 'load', model: set.model });
+    worker.postMessage({ type: 'load', model: set.model, local: NATIVE });
   });
   return modelWait;
 }
@@ -325,10 +326,11 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
 (async () => {
   db = await openDB();
   msgs = await dbAll();
+  if (NATIVE) { $('#about').textContent = 'Розпізнавання і всі дані — лише на цьому пристрої. Модель вбудована, мережа не потрібна.'; set.model = 'onnx-community/whisper-base'; $('#sModel').disabled = true; }
   prune(); pill(); render();
   setInterval(() => { prune(); render(); }, 30000);
   addEventListener('online', pill); addEventListener('offline', pill);
   document.addEventListener('visibilitychange', async () => { if (live && document.visibilityState === 'visible' && !lock) try { lock = await navigator.wakeLock.request('screen'); } catch (e) {} });
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (!NATIVE && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
   window.__efir = { Segmenter, addText, sitrep, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };
 })();

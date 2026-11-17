@@ -35,7 +35,12 @@ async function load(model) {
 onmessage = async (e) => {
   const m = e.data;
   try {
-    if (m.type === 'load') { asr = null; await load(m.model); }
+    if (m.type === 'load') {
+      asr = null;
+      if (m.local) { env.allowLocalModels = true; env.localModelPath = new URL('./models/', import.meta.url).href; }
+      try { await load(m.model); }
+      catch (e1) { if (!m.local) throw e1; env.allowLocalModels = false; await load(m.model); }   // вбудованої моделі немає — пробуємо мережу
+    }
     else if (m.type === 'run') {
       const t0 = performance.now();
       const opt = { task: 'transcribe', chunk_length_s: 30 };
