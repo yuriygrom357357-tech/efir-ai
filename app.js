@@ -25,7 +25,7 @@ const I = {
     setTitle: 'Тест і налаштування', lTest: 'ТЕСТ БЕЗ РАДІОСТАНЦІЇ', demo: 'Демо-запис', file: 'Аудіофайл…', manualPh: 'Або введіть повідомлення текстом, по одному в рядку', addText: 'Додати текст у стрічку',
     lModel: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', mTiny: 'Tiny — найшвидша, найменша', mBase: 'Base — баланс, ≈ 200 МБ', mSmall: 'Small — точніша, найбільша',
     lLang: 'МОВА ЕФІРУ', spUk: 'Українська', spEn: 'Англійська', spRu: 'Російська', spAuto: 'Визначати автоматично',
-    lCalls: 'ПОЗИВНІ (ЧЕРЕЗ КОМУ)', lKeep: 'ЗБЕРІГАТИ ЗАПИСИ', k24: '24 години', k48: '48 годин', k72: '72 години', lData: 'ДАНІ', export: 'Експорт JSON', wipe: 'Стерти все', wipe2: 'Ще раз — стерти безповоротно', wiped: 'Журнал і записи стерто',
+    lCalls: 'ПОЗИВНІ (ЧЕРЕЗ КОМУ)', lKeep: 'ЗБЕРІГАТИ ЗАПИСИ', k24: '24 години', k48: '48 годин', k72: '72 години', lData: 'ДАНІ', export: 'Експорт JSON', wipe: '⚠ СТЕРТИ ВСЕ', wipe2: 'НАТИСНІТЬ ЩЕ РАЗ — СТЕРТИ БЕЗПОВОРОТНО', wiped: 'Журнал і записи стерто',
     aboutWeb: 'Розпізнавання і всі дані — лише на цьому пристрої. Мережа потрібна один раз, щоб завантажити модель.', aboutNative: 'Розпізнавання і всі дані — лише на цьому пристрої. Модель вбудована, мережа не потрібна.',
     newModel: 'Нова модель завантажиться під час наступного запуску розпізнавання', noMic: 'Немає доступу до мікрофона. Дозвольте його в налаштуваннях.', startFail: 'Не вдалося почати: ',
     fPrep: (l) => `${l}: готую модель…`, fNone: (l) => `${l}: мовлення не знайдено`, fRun: (l, n) => `${l}: ${n} ${pl(n, 'фрагмент', 'фрагменти', 'фрагментів')}, розпізнаю…`, fDone: (l, a, r) => `${l}: готово. ${a} с звуку розпізнано за ${r} с`, demoL: 'Демо', fileL: 'Файл', demoFail: 'Демо-запис недоступний: ',
@@ -46,7 +46,7 @@ const I = {
     setTitle: 'Test & settings', lTest: 'TEST WITHOUT A RADIO', demo: 'Demo recording', file: 'Audio file…', manualPh: 'Or type messages as text, one per line', addText: 'Add text to the feed',
     lModel: 'SPEECH MODEL', mTiny: 'Tiny — fastest, smallest', mBase: 'Base — balanced, ≈ 200 MB', mSmall: 'Small — more accurate, largest',
     lLang: 'RADIO LANGUAGE', spUk: 'Ukrainian', spEn: 'English', spRu: 'Russian', spAuto: 'Detect automatically',
-    lCalls: 'CALLSIGNS (COMMA-SEPARATED)', lKeep: 'KEEP RECORDS FOR', k24: '24 hours', k48: '48 hours', k72: '72 hours', lData: 'DATA', export: 'Export JSON', wipe: 'Erase everything', wipe2: 'Tap again — erase for good', wiped: 'Log and recordings erased',
+    lCalls: 'CALLSIGNS (COMMA-SEPARATED)', lKeep: 'KEEP RECORDS FOR', k24: '24 hours', k48: '48 hours', k72: '72 hours', lData: 'DATA', export: 'Export JSON', wipe: '⚠ ERASE EVERYTHING', wipe2: 'TAP AGAIN — ERASE FOR GOOD', wiped: 'Log and recordings erased',
     aboutWeb: 'Recognition and all data stay on this device. A network is needed once, to download the model.', aboutNative: 'Recognition and all data stay on this device. The model is built in; no network needed.',
     newModel: 'The new model will load the next time recognition starts', noMic: 'No microphone access. Allow it in settings.', startFail: 'Could not start: ',
     fPrep: (l) => `${l}: preparing the model…`, fNone: (l) => `${l}: no speech found`, fRun: (l, n) => `${l}: ${n} segment${n === 1 ? '' : 's'}, transcribing…`, fDone: (l, a, r) => `${l}: done. ${a} s of audio transcribed in ${r} s`, demoL: 'Demo', fileL: 'File', demoFail: 'Demo recording unavailable: ',
@@ -465,7 +465,7 @@ const restart = () => { if (live) { stop(); start(); } };
 $('#sInput').onchange = (e) => { set.input = e.target.value; saveSet(); restart(); };
 $('#sMode').onchange = (e) => { set.mode = e.target.value; saveSet(); restart(); };
 if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => { log('змінився набір аудіопристроїв'); if ($('#shSet').classList.contains('on')) fillInputs(); });
-$('#bSet').onclick = () => { fillInputs(); $('#sModel').value = set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#shSet').classList.add('on'); };
+$('#bSet').onclick = () => { fillInputs(); $('#sModel').value = set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#bWipe').classList.remove('arm'); $('#shSet').classList.add('on'); };
 $('#sModel').onchange = (e) => { set.model = e.target.value; saveSet(); modelState = 'none'; modelWait = null; pill(); toast(L().newModel, 5000); };
 $('#sLang').onchange = (e) => { set.lang = e.target.value; saveSet(); applyLang(); };
 $('#spk').onclick = (e) => { const b = e.target.closest('.chip'); if (!b) return; set.lang = b.dataset.l; saveSet(); applyLang(); };
@@ -473,9 +473,9 @@ $('#sCalls').onchange = (e) => { set.calls = e.target.value; saveSet(); render()
 $('#sKeep').onchange = (e) => { set.keep = +e.target.value; saveSet(); prune(); };
 let wipeArm = false;
 $('#bWipe').onclick = async () => {
-  if (!wipeArm) { wipeArm = true; $('#bWipe').textContent = L().wipe2; return; }
+  if (!wipeArm) { wipeArm = true; $('#bWipe').textContent = L().wipe2; $('#bWipe').classList.add('arm'); setTimeout(() => { if (wipeArm) { wipeArm = false; $('#bWipe').textContent = L().wipe; $('#bWipe').classList.remove('arm'); } }, 5000); return; }
   if (live) stop();
-  msgs = []; seen.clear(); await dbClear(); wipeArm = false; closeSheets(); render(); toast(L().wiped, 3000);
+  msgs = []; seen.clear(); diag.length = 0; await dbClear(); wipeArm = false; $('#bWipe').classList.remove('arm'); closeSheets(); render(); toast(L().wiped, 3000);
 };
 $('#chips').onclick = (e) => { const b = e.target.closest('.chip'); if (!b) return; document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === b)); win = +b.dataset.w; renderFeed(); };
 

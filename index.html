@@ -128,7 +128,9 @@ button{cursor:pointer;border:0;background:none}
 .sheet .row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
 .sheet .row .btn{flex:1;min-height:54px;font-size:17px;border-radius:18px}
 .sheet .note{color:var(--dim);font-size:14px;margin-top:12px}
-.btn.danger{border-color:#7a302a;color:#ff8a80}
+.wipe{display:block;width:100%;min-height:68px;margin-top:14px;border-radius:22px;font-family:Oswald,sans-serif;font-weight:600;font-size:22px;letter-spacing:.06em;color:#ffb3ac;background:linear-gradient(180deg,#3d1713 0%,#220d0b 100%);border:2px solid var(--red);box-shadow:inset 0 1px 0 rgba(255,160,150,.2),0 3px 0 #120605,0 0 22px rgba(255,90,77,.22)}
+.wipe:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,160,150,.2),0 1px 0 #120605}
+.wipe.arm{background:linear-gradient(180deg,#FF6A5E,#D93A2E);color:#1a0705;border-color:#ffb3ac}
 pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;line-height:1.55;background:#0d1310;border:1px solid var(--edge);border-radius:16px;padding:14px;margin-top:12px;color:var(--tx);box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
 .toast{position:fixed;left:50%;bottom:calc(var(--sab) + 110px);transform:translateX(-50%);background:rgba(34,17,15,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #a8372e;color:var(--tx);padding:11px 16px;border-radius:16px;font-size:15px;max-width:90%;display:none;z-index:9;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .toast.on{display:block}
@@ -179,6 +181,7 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
 <div class="sheet" id="shSet"><div class="box">
   <div class="grab"></div>
   <h2><span data-i="setTitle"></span> <button data-close aria-label="Закрити">×</button></h2>
+  <button class="wipe" id="bWipe"></button>
   <label data-i="lTest"></label>
   <div class="row"><button class="btn" id="bDemo" data-i="demo"></button><button class="btn" id="bFile" data-i="file"></button></div>
   <input type="file" id="file" accept="audio/*,video/*" hidden>
@@ -198,7 +201,7 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
   <label data-i="lKeep"></label>
   <select id="sKeep"><option value="24" data-i="k24"></option><option value="48" data-i="k48"></option><option value="72" data-i="k72"></option></select>
   <label data-i="lData"></label>
-  <div class="row"><button class="btn" id="bExport" data-i="export"></button><button class="btn danger" id="bWipe"></button></div>
+  <div class="row"><button class="btn" id="bExport" data-i="export"></button></div>
   <p class="note" id="about"></p>
   <label>ДІАГНОСТИКА</label>
   <pre class="rep" id="diag" style="margin-top:0;font-size:12px;color:var(--mut)"></pre>
