@@ -3,7 +3,7 @@ import { classify, highlight, CATS, THREAT_EN } from './rules.js';
 const $ = (s) => document.querySelector(s);
 const NATIVE = !!window.Capacitor;   // запущено як встановлений застосунок, модель лежить усередині
 const SET_KEY = 'efir.settings';
-const set = Object.assign({ input: '', mode: 'mic', model: 'onnx-community/whisper-base', lang: 'uk', ui: 'uk', calls: 'Кобра, Сокіл, Комбат, Північ', keep: 24 }, JSON.parse(localStorage.getItem(SET_KEY) || '{}'));
+const set = Object.assign({ engine: 'local', input: '', mode: 'mic', model: 'onnx-community/whisper-base', lang: 'uk', ui: 'uk', calls: 'Кобра, Сокіл, Комбат, Північ', keep: 24 }, JSON.parse(localStorage.getItem(SET_KEY) || '{}'));
 const saveSet = () => localStorage.setItem(SET_KEY, JSON.stringify(set));
 const calls = () => set.calls.split(',').map(s => s.trim()).filter(Boolean);
 
@@ -12,6 +12,7 @@ const pl = (n, a, b, c) => { const d = n % 10, h = n % 100; return d === 1 && h 
 const I = {
   uk: {
     lInput: 'ДЖЕРЕЛО ЗВУКУ', inAuto: 'Автоматично (вибирає система)', modeMic: 'Мікрофон · шумозаглушення', modeLine: 'Кабель · без обробки', inNow: 'Зараз слухаю: ', inIdle: 'Активний вхід буде видно після натискання «Слухати».',
+    lEngine: 'РОЗПІЗНАВАННЯ', engLocal: 'НА ПРИСТРОЇ', engCloud: 'ІНТЕРНЕТ', cloudWarn: 'Інтернет-режим: звук іде на сервери Google. Швидко, але не для бойового ефіру.', cloudPill: 'GOOGLE · ІНТЕРНЕТ', cloudNet: 'Інтернет-режим зупинено: немає мережі або сервіс недоступний.', cloudLive: 'слухаю…',
     auto: 'АВТО', tabSit: 'Зведення', tabAn: 'Аналітика 24 год', anAxis: 'повідомлень за годину', slowHint: 'Повільно розпізнає? ☰ → Модель → «Tiny — найшвидша».',
     listen: 'СЛУХАТИ', stop: 'ЗУПИНИТИ', prep: 'ГОТУЮ…', net: 'МЕРЕЖА Є', off: 'АВТОНОМНО', model: 'МОДЕЛЬ', mic: 'МІКРОФОН', micOn: 'СЛУХАЮ',
     modelTitle: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', loadWeb: 'Готую модель. Перший раз вона завантажується з мережі, далі працює без неї.', loadNative: 'Запускаю модель розпізнавання…',
@@ -33,6 +34,7 @@ const I = {
   },
   en: {
     lInput: 'AUDIO SOURCE', inAuto: 'Automatic (system default)', modeMic: 'Microphone · noise suppression', modeLine: 'Cable · no processing', inNow: 'Now listening to: ', inIdle: 'The active input is shown after you press Listen.',
+    lEngine: 'RECOGNITION', engLocal: 'ON DEVICE', engCloud: 'INTERNET', cloudWarn: 'Internet mode: audio goes to Google servers. Fast, but not for live combat traffic.', cloudPill: 'GOOGLE · ONLINE', cloudNet: 'Internet mode stopped: no network or the service is unavailable.', cloudLive: 'listening…',
     auto: 'AUTO', tabSit: 'Summary', tabAn: '24 h analytics', anAxis: 'messages per hour', slowHint: 'Slow transcription? ☰ → Model → “Tiny — fastest”.',
     listen: 'LISTEN', stop: 'STOP', prep: 'STARTING…', net: 'ONLINE', off: 'OFFLINE', model: 'MODEL', mic: 'MIC', micOn: 'LISTENING',
     modelTitle: 'SPEECH MODEL', loadWeb: 'Preparing the model. It downloads once, then works without a network.', loadNative: 'Starting the speech model…',
@@ -65,6 +67,8 @@ function applyLang() {
   document.querySelectorAll('[data-ip]').forEach(e => { e.placeholder = L()[e.dataset.ip]; });
   $('#bLang').textContent = EN() ? 'UA' : 'EN';
   document.querySelectorAll('#spk .chip').forEach(c => c.classList.toggle('on', c.dataset.l === set.lang));
+  $('#engRow').hidden = !SR;
+  document.querySelectorAll('#eng .chip').forEach(c => { c.classList.toggle('on', c.dataset.e === engine()); c.classList.toggle('cloud', c.dataset.e === 'cloud'); });
   $('#n1').textContent = EN() ? 'EFIR-AI · ЕФІР-ШІ' : 'ЕФІР-ШІ';
   $('#bGoT').textContent = live ? L().stop : L().listen;
   $('#bWipe').textContent = L().wipe;
@@ -133,7 +137,7 @@ function renderFeed() {
   const cs = calls(), now = Date.now();
   feed.innerHTML = list.map(m => {
     const fresh = seen.has(m.id) ? '' : ' new'; seen.add(m.id);
-    if (m.pending) return `<div class="msg pending${fresh}"><div class="h"><span>${hhmmss(m.t)}</span><span>${m.dur.toFixed(1)} ${L().s}</span><span class="c">…</span></div><div class="t">${L().recog}</div></div>`;
+    if (m.pending) return `<div class="msg pending${fresh}"><div class="h"><span>${hhmmss(m.t)}</span><span>${m.dur ? m.dur.toFixed(1) + ' ' + L().s : 'GOOGLE'}</span><span class="c">…</span></div><div class="t">${m.text ? m.text.replace(/[&<>]/g, '') : L().recog}</div></div>`;
     const hot = m.cat === 'crit' && now - m.t < 180000 ? ' hot' : '';   // критичне за останні 3 хв м'яко пульсує
     return `<button class="msg ${m.cat}${hot}${fresh}" data-id="${m.id}"><div class="h"><span>${hhmmss(m.t)}</span>${m.dur ? `<span>▶ ${m.dur.toFixed(1)} ${L().s}</span>` : `<span>${L().text}</span>`}<span class="c">${catName(m.cat)}</span></div><div class="t">${highlight(m.text, cs)}</div></button>`;
   }).join('');
@@ -186,8 +190,9 @@ const jobs = new Map();
 
 function pill() {
   const p = $('#pModel');
-  p.className = 'pill ' + (modelState === 'ready' ? 'ok' : modelState === 'error' ? 'bad' : modelState === 'loading' ? 'warn' : '');
-  p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : device === 'native' ? 'NATIVE' : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
+  if (engine() === 'cloud') { p.className = 'pill bad'; p.textContent = L().cloudPill; }
+  else p.className = 'pill ' + (modelState === 'ready' ? 'ok' : modelState === 'error' ? 'bad' : modelState === 'loading' ? 'warn' : '');
+  if (engine() !== 'cloud') p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : device === 'native' ? 'NATIVE' : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
   const n = $('#pNet'); n.className = 'pill ' + (navigator.onLine ? '' : 'ok'); n.textContent = navigator.onLine ? L().net : L().off;
   const m = $('#pMic'); m.className = 'pill ' + (live ? 'ok' : ''); m.textContent = live ? L().micOn + (inputLabel ? ' · ' + inputLabel.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 18) : '') : L().mic + ' —';
 }
@@ -292,6 +297,35 @@ class Segmenter {
   end() { if (this.cur) this.flush(); }
 }
 
+/* ---------- інтернет-режим: розпізнавання Google у браузері Chrome ---------- */
+const SR = !NATIVE && (window.SpeechRecognition || window.webkitSpeechRecognition);
+const engine = () => (SR && set.engine === 'cloud') ? 'cloud' : 'local';
+let rec = null, interim = null;
+function dropInterim() { if (interim) { msgs = msgs.filter(m => m !== interim); interim = null; } }
+function startCloud() {
+  rec = new SR();
+  rec.lang = ({ uk: 'uk-UA', en: 'en-US', ru: 'ru-RU' })[set.lang] || 'uk-UA';
+  rec.continuous = true; rec.interimResults = true;
+  rec.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i], txt = r[0].transcript.trim();
+      if (r.isFinal) { dropInterim(); if (txt) addText(txt.charAt(0).toUpperCase() + txt.slice(1)); else render(); }
+      else if (txt) { if (!interim) { interim = { id: 'live' + Date.now(), t: Date.now(), dur: 0, pending: true }; msgs.push(interim); } interim.text = txt; renderFeed(); }
+    }
+  };
+  rec.onspeechstart = () => level(0.06, true);
+  rec.onspeechend = () => level(0, false);
+  rec.onerror = (e) => {
+    log('інтернет-режим: ' + e.error);
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    const fatal = e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'network' || e.error === 'language-not-supported';
+    if (fatal) { toast(e.error === 'not-allowed' ? L().noMic : L().cloudNet, 8000); stop(); }
+  };
+  rec.onend = () => { if (live && rec) { try { rec.start(); } catch (e) { log('інтернет-режим: перезапуск не вдався'); stop(); } } };   // Chrome сам зупиняється після паузи
+  rec.start();
+  log('інтернет-режим: слухаю, мова ' + rec.lang);
+}
+
 /* ---------- мікрофон / лінійний вхід ---------- */
 let inputLabel = '';
 let live = false, ctx = null, stream = null, node = null, lock = null;
@@ -304,6 +338,11 @@ function level(rms, sp) {
 
 async function start() {
   const go = $('#bGo'); go.disabled = true; $('#bGoT').textContent = L().prep;
+  if (engine() === 'cloud') {
+    try { startCloud(); live = true; go.classList.add('live'); $('#bGoT').textContent = L().stop; }
+    catch (e) { log('інтернет-режим не стартував: ' + e.message); rec = null; toast(L().startFail + e.message, 8000); $('#bGoT').textContent = L().listen; }
+    go.disabled = false; pill(); render(); return;
+  }
   try {
     log('запит мікрофона');
     const line = set.mode === 'line';
@@ -335,6 +374,7 @@ async function start() {
   go.disabled = false; pill(); render();
 }
 function stop() {
+  if (rec) { const r = rec; rec = null; r.onend = null; try { r.stop(); } catch (e) {} dropInterim(); }
   if (node) { try { node._seg.end(); node._src.disconnect(); node.disconnect(); } catch (e) {} node = null; }
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (lock) { try { lock.release(); } catch (e) {} lock = null; }
@@ -500,6 +540,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator
 $('#bSet').onclick = () => { fillInputs(); $('#sModel').value = set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#bWipe').classList.remove('arm'); $('#shSet').classList.add('on'); };
 $('#sModel').onchange = (e) => { set.model = e.target.value; saveSet(); modelState = 'none'; modelWait = null; pill(); toast(L().newModel, 5000); };
 $('#sLang').onchange = (e) => { set.lang = e.target.value; saveSet(); applyLang(); };
+$('#eng').onclick = (e) => { const b = e.target.closest('.chip'); if (!b || b.dataset.e === set.engine) return; const was = live; if (was) stop(); set.engine = b.dataset.e; saveSet(); applyLang(); if (set.engine === 'cloud') toast(L().cloudWarn, 9000); if (was) start(); };
 $('#spk').onclick = (e) => { const b = e.target.closest('.chip'); if (!b) return; set.lang = b.dataset.l; saveSet(); applyLang(); };
 $('#sCalls').onchange = (e) => { set.calls = e.target.value; saveSet(); render(); };
 $('#sKeep').onchange = (e) => { set.keep = +e.target.value; saveSet(); prune(); };
@@ -533,5 +574,5 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
     catch (e) { console.log('EFIR_RESULT fail ' + e.message); }
     console.log('EFIR_DIAG ' + diag.join(' || '));
   }).catch(() => {});
-  window.__efir = { Segmenter, addText, sitrep, analytics, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };
+  window.__efir = { Segmenter, addText, engine, sitrep, analytics, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };
 })();

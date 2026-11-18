@@ -44,6 +44,7 @@ button{cursor:pointer;border:0;background:none}
 .pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;padding:6px 10px;border-radius:20px;background:#121915;border:1px solid var(--edge);color:var(--mut);white-space:nowrap;display:flex;align-items:center;gap:6px}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:#55635b}
 .pill.ok::before{background:var(--grn);box-shadow:0 0 6px var(--grn)}.pill.warn::before{background:var(--amb);box-shadow:0 0 6px var(--amb)}.pill.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
+#eng .chip.on.cloud{background:linear-gradient(180deg,#FF8A80,#E0463A);color:#1a0705;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 0 #7a1f18,0 6px 14px rgba(255,90,77,.28)}
 .pill.ok{color:#bfe9d2}.pill.warn{color:#f5d593}.pill.bad{color:#ffb3ac}
 
 /* зведення */
@@ -151,6 +152,7 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
   <div class="pills"><span class="pill" id="pNet"></span><span class="pill" id="pModel"></span><span class="pill" id="pMic"></span></div>
 
   <div class="spk"><span class="mono" data-i="lLang"></span><nav class="chips" id="spk"><button class="chip" data-l="uk">UA</button><button class="chip" data-l="en">EN</button><button class="chip" data-l="auto" data-i="auto"></button></nav></div>
+  <div class="spk" id="engRow" hidden><span class="mono" data-i="lEngine"></span><nav class="chips" id="eng"><button class="chip" data-e="local" data-i="engLocal"></button><button class="chip" data-e="cloud" data-i="engCloud"></button></nav></div>
 
   <section class="load" id="load"><div class="mono" style="font-size:11px;color:var(--amb);letter-spacing:.14em" data-i="modelTitle"></div><div id="loadTxt" style="margin-top:6px"></div><div class="bar"><i id="loadBar"></i></div></section>
 
