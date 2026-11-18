@@ -1,4 +1,4 @@
-const V = 'efir-v6';
+const V = 'efir-v7';
 const SHELL = ['./', 'index.html', 'app.js', 'rules.js', 'asr-worker.js', 'tap.js', 'fonts.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
   'vendor/transformers.min.js', 'vendor/ort-wasm-simd-threaded.asyncify.mjs', 'vendor/ort-wasm-simd-threaded.asyncify.wasm',
   'fonts/oswald-cyrillic-500-normal.woff2', 'fonts/oswald-cyrillic-600-normal.woff2', 'fonts/oswald-latin-500-normal.woff2', 'fonts/oswald-latin-600-normal.woff2',
