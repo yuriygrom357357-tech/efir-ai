@@ -70,6 +70,14 @@ button{cursor:pointer;border:0;background:none}
 .chip{flex:1;min-height:48px;border-radius:22px;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;color:var(--mut);white-space:nowrap;transition:background .15s,color .15s}
 .chip.on{background:linear-gradient(180deg,#FBCB63,#E9A52B);color:#16110a;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 0 #8f6514,0 6px 14px rgba(242,179,61,.28)}
 
+.spk{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.spk>span{font-size:11px;letter-spacing:.14em;color:var(--dim);white-space:nowrap}
+.spk .chips{flex:1;margin:0}
+.bars{display:flex;align-items:flex-end;gap:3px;height:92px;margin-top:14px;padding:10px 10px 6px;background:#0d1310;border:1px solid var(--edge);border-radius:16px;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
+.bars div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:1px}
+.bars i{display:block;border-radius:2px;background:#4a5b52;min-height:0}
+.bars i.r{background:var(--red)}
+.barsx{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);padding:4px 10px 0}
 /* стрічка */
 .feed{display:flex;flex-direction:column;gap:9px}
 .msg{--c:var(--gry);position:relative;display:block;width:100%;text-align:left;background:linear-gradient(180deg,#191f1c 0%,#111513 100%);border:1px solid #242d28;border-radius:18px;padding:12px 14px 13px 26px;min-height:60px;box-shadow:var(--hi),0 6px 16px rgba(0,0,0,.35)}
@@ -140,6 +148,8 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
   </header>
   <div class="pills"><span class="pill" id="pNet"></span><span class="pill" id="pModel"></span><span class="pill" id="pMic"></span></div>
 
+  <div class="spk"><span class="mono" data-i="lLang"></span><nav class="chips" id="spk"><button class="chip" data-l="uk">UA</button><button class="chip" data-l="en">EN</button><button class="chip" data-l="ru">RU</button><button class="chip" data-l="auto" data-i="auto"></button></nav></div>
+
   <section class="load" id="load"><div class="mono" style="font-size:11px;color:var(--amb);letter-spacing:.14em" data-i="modelTitle"></div><div id="loadTxt" style="margin-top:6px"></div><div class="bar"><i id="loadBar"></i></div></section>
 
   <section class="sum calm" id="sum"><div class="lbl mono" id="sumLbl"></div><div class="main" id="sumMain"></div><div class="sub" id="sumSub"></div><div class="counts" id="counts"></div></section>
@@ -159,7 +169,9 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
 
 <div class="sheet" id="shRep"><div class="box">
   <div class="grab"></div>
-  <h2>SITREP <button data-close aria-label="Закрити">×</button></h2>
+  <h2><span id="repTitle">SITREP</span> <button data-close aria-label="Закрити">×</button></h2>
+  <nav class="chips" id="repTabs" style="margin:12px 0 0"><button class="chip on" data-t="sit" data-i="tabSit"></button><button class="chip" data-t="an" data-i="tabAn"></button></nav>
+  <div id="anBox" hidden><div class="bars" id="anBars"></div><div class="barsx"><span id="anFrom"></span><span data-i="anAxis"></span><span id="anTo"></span></div></div>
   <pre class="rep" id="repTxt"></pre>
   <div class="row"><button class="btn" id="bCopy" data-i="copy"></button><button class="btn" id="bShare" data-i="share"></button><button class="btn" id="bJson">JSON</button></div>
 </div></div>
@@ -173,6 +185,10 @@ pre.rep{white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',
   <textarea id="manual" data-ip="manualPh" style="margin-top:10px"></textarea>
   <div class="row"><button class="btn" id="bManual" data-i="addText"></button></div>
 
+  <label data-i="lInput"></label>
+  <select id="sInput"></select>
+  <select id="sMode" style="margin-top:10px"><option value="mic" data-i="modeMic"></option><option value="line" data-i="modeLine"></option></select>
+  <p class="note" id="inNote" style="margin-top:8px"></p>
   <label data-i="lModel"></label>
   <select id="sModel"><option value="onnx-community/whisper-tiny" data-i="mTiny"></option><option value="onnx-community/whisper-base" data-i="mBase"></option><option value="onnx-community/whisper-small" data-i="mSmall"></option></select>
   <label data-i="lLang"></label>

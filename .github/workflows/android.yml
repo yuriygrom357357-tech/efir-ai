@@ -29,6 +29,7 @@ jobs:
       - name: Вкласти модель розпізнавання (для роботи без мережі)
         run: |
           trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
+          for MODEL in onnx-community/whisper-base onnx-community/whisper-tiny; do
           D=native/www/models/$MODEL
           mkdir -p $D/onnx
           B=https://huggingface.co/$MODEL/resolve/main
@@ -41,7 +42,8 @@ jobs:
           for f in encoder_model.onnx decoder_model_merged_q4.onnx encoder_model_quantized.onnx decoder_model_merged_quantized.onnx; do
             curl -fsSL "$B/onnx/$f" -o "$D/onnx/$f"
           done
-          du -sh native/www/models; ls -la $D $D/onnx
+          done
+          du -sh native/www/models/*/*
 
       - name: Capacitor → Android-проєкт
         working-directory: native

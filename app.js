@@ -3,7 +3,7 @@ import { classify, highlight, CATS, THREAT_EN } from './rules.js';
 const $ = (s) => document.querySelector(s);
 const NATIVE = !!window.Capacitor;   // запущено як встановлений застосунок, модель лежить усередині
 const SET_KEY = 'efir.settings';
-const set = Object.assign({ model: 'onnx-community/whisper-base', lang: 'uk', ui: 'uk', calls: 'Кобра, Сокіл, Комбат, Північ', keep: 24 }, JSON.parse(localStorage.getItem(SET_KEY) || '{}'));
+const set = Object.assign({ input: '', mode: 'mic', model: 'onnx-community/whisper-base', lang: 'uk', ui: 'uk', calls: 'Кобра, Сокіл, Комбат, Північ', keep: 24 }, JSON.parse(localStorage.getItem(SET_KEY) || '{}'));
 const saveSet = () => localStorage.setItem(SET_KEY, JSON.stringify(set));
 const calls = () => set.calls.split(',').map(s => s.trim()).filter(Boolean);
 
@@ -11,6 +11,8 @@ const calls = () => set.calls.split(',').map(s => s.trim()).filter(Boolean);
 const pl = (n, a, b, c) => { const d = n % 10, h = n % 100; return d === 1 && h !== 11 ? a : d >= 2 && d <= 4 && (h < 12 || h > 14) ? b : c; };
 const I = {
   uk: {
+    lInput: 'ДЖЕРЕЛО ЗВУКУ', inAuto: 'Автоматично (вибирає система)', modeMic: 'Мікрофон · шумозаглушення', modeLine: 'Кабель · без обробки', inNow: 'Зараз слухаю: ', inIdle: 'Активний вхід буде видно після натискання «Слухати».',
+    auto: 'АВТО', tabSit: 'Зведення', tabAn: 'Аналітика 24 год', anAxis: 'повідомлень за годину', slowHint: 'Повільно розпізнає? ☰ → Модель → «Tiny — найшвидша».',
     listen: 'СЛУХАТИ', stop: 'ЗУПИНИТИ', prep: 'ГОТУЮ…', net: 'МЕРЕЖА Є', off: 'АВТОНОМНО', model: 'МОДЕЛЬ', mic: 'МІКРОФОН', micOn: 'СЛУХАЮ',
     modelTitle: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', loadWeb: 'Готую модель. Перший раз вона завантажується з мережі, далі працює без неї.', loadNative: 'Запускаю модель розпізнавання…',
     loading: (a, b) => `Завантаження моделі: ${a} з ${b} МБ`, loadFail: (m) => `Модель не завантажилась: ${m}. Перевірте мережу й натисніть «Слухати» ще раз.`, workerFail: 'Не вдалося запустити розпізнавання: ',
@@ -30,6 +32,8 @@ const I = {
     periods: { 600000: '10 хв', 1800000: '30 хв', 3600000: '1 год', 7200000: '2 год', 0: 'весь журнал' }
   },
   en: {
+    lInput: 'AUDIO SOURCE', inAuto: 'Automatic (system default)', modeMic: 'Microphone · noise suppression', modeLine: 'Cable · no processing', inNow: 'Now listening to: ', inIdle: 'The active input is shown after you press Listen.',
+    auto: 'AUTO', tabSit: 'Summary', tabAn: '24 h analytics', anAxis: 'messages per hour', slowHint: 'Slow transcription? ☰ → Model → “Tiny — fastest”.',
     listen: 'LISTEN', stop: 'STOP', prep: 'STARTING…', net: 'ONLINE', off: 'OFFLINE', model: 'MODEL', mic: 'MIC', micOn: 'LISTENING',
     modelTitle: 'SPEECH MODEL', loadWeb: 'Preparing the model. It downloads once, then works without a network.', loadNative: 'Starting the speech model…',
     loading: (a, b) => `Downloading model: ${a} of ${b} MB`, loadFail: (m) => `Model failed to load: ${m}. Check the network and press Listen again.`, workerFail: 'Could not start recognition: ',
@@ -60,6 +64,7 @@ function applyLang() {
   document.querySelectorAll('[data-i]').forEach(e => { e.textContent = L()[e.dataset.i]; });
   document.querySelectorAll('[data-ip]').forEach(e => { e.placeholder = L()[e.dataset.ip]; });
   $('#bLang').textContent = EN() ? 'UA' : 'EN';
+  document.querySelectorAll('#spk .chip').forEach(c => c.classList.toggle('on', c.dataset.l === set.lang));
   $('#n1').textContent = EN() ? 'EFIR-AI · ЕФІР-ШІ' : 'ЕФІР-ШІ';
   $('#bGoT').textContent = live ? L().stop : L().listen;
   $('#bWipe').textContent = L().wipe;
@@ -160,7 +165,7 @@ function pill() {
   p.className = 'pill ' + (modelState === 'ready' ? 'ok' : modelState === 'error' ? 'bad' : modelState === 'loading' ? 'warn' : '');
   p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
   const n = $('#pNet'); n.className = 'pill ' + (navigator.onLine ? '' : 'ok'); n.textContent = navigator.onLine ? L().net : L().off;
-  const m = $('#pMic'); m.className = 'pill ' + (live ? 'ok' : ''); m.textContent = live ? L().micOn : L().mic + ' —';
+  const m = $('#pMic'); m.className = 'pill ' + (live ? 'ok' : ''); m.textContent = live ? L().micOn + (inputLabel ? ' · ' + inputLabel.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 18) : '') : L().mic + ' —';
 }
 
 function ensureModel() {
@@ -177,7 +182,7 @@ function ensureModel() {
       const m = e.data;
       if (m.type === 'log') log('модель: ' + m.text);
       else if (m.type === 'progress' && m.total) { const mb = (x) => (x / 1048576).toFixed(0); $('#loadBar').style.width = Math.min(100, 100 * m.loaded / m.total) + '%'; $('#loadTxt').textContent = L().loading(mb(m.loaded), mb(m.total)); }
-      else if (m.type === 'ready') { log(`модель готова (${m.device})`); modelState = 'ready'; device = m.device; pill(); $('#load').classList.remove('on'); modelWait = null; res(); }
+      else if (m.type === 'ready') { log(`модель готова (${m.device})`); modelState = 'ready'; device = m.device; if (m.device !== 'webgpu' && /base|small/.test(set.model)) setTimeout(() => toast(L().slowHint, 9000), 1500); pill(); $('#load').classList.remove('on'); modelWait = null; res(); }
       else if (m.type === 'result') { const j = jobs.get(m.id); jobs.delete(m.id); if (j) j(m.text, m.ms); }
       else if (m.type === 'error') {
         log(`помилка (${m.stage}): ${m.message}`);
@@ -256,6 +261,7 @@ class Segmenter {
 }
 
 /* ---------- мікрофон / лінійний вхід ---------- */
+let inputLabel = '';
 let live = false, ctx = null, stream = null, node = null, lock = null;
 const vuBars = [...document.querySelectorAll('#vu i')];
 function level(rms, sp) {
@@ -268,7 +274,12 @@ async function start() {
   const go = $('#bGo'); go.disabled = true; $('#bGoT').textContent = L().prep;
   try {
     log('запит мікрофона');
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    const line = set.mode === 'line';
+    const au = { channelCount: 1, echoCancellation: false, noiseSuppression: !line, autoGainControl: !line };
+    if (set.input) au.deviceId = { exact: set.input };
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: au }); }
+    catch (e) { if (!set.input || e.name === 'NotAllowedError') throw e; log('вибраний вхід недоступний, беру системний'); delete au.deviceId; stream = await navigator.mediaDevices.getUserMedia({ audio: au }); }
+    inputLabel = (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].label) || '';
     log('мікрофон дозволено: ' + (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].label || 'без назви'));
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
     await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 1500))]);
@@ -370,21 +381,94 @@ function sitrep() {
     'Сформовано автоматично за словником тригерів. Потребує перевірки оператором.'
   ].filter(x => x !== null).join('\n');
 }
+/* ---------- аналітика за 24 години: статистика журналу, без LLM ---------- */
+function analytics() {
+  const now = Date.now(), DAY = 24 * 3600000, en = EN();
+  const list = msgs.filter(m => !m.pending && now - m.t <= DAY).sort((a, b) => a.t - b.t);
+  const hours = Array.from({ length: 24 }, () => ({ n: 0, crit: 0 }));
+  for (const m of list) { const i = Math.min(23, Math.max(0, 23 - Math.floor((now - m.t) / 3600000))); hours[i].n++; if (m.cat === 'crit') hours[i].crit++; }
+  const c = {}; for (const m of list) c[m.cat] = (c[m.cat] || 0) + 1;
+  // події загроз: згадки одного типу ближче ніж 2 хв рахуємо як одну подію
+  const ev = {};
+  for (const m of list) for (const k of m.threats || []) { const a = ev[k] || (ev[k] = []); if (!a.length || m.t - a[a.length - 1] > 120000) a.push(m.t); }
+  const keys = Object.keys(ev);
+  const trend = keys.map(k => { const last = ev[k].filter(t => now - t <= 3600000).length, before = ev[k].length - last, span = Math.max(1, Math.min(23, (now - ev[k][0]) / 3600000 - 1)); const avg = before / span; return [k, ev[k].length, last, last > avg * 1.5 && last >= 2 ? 1 : last < avg * 0.5 ? -1 : 0]; }).sort((a, b) => b[1] - a[1]);
+  // закономірності «після A протягом 15 хв було B»
+  const pairs = [];
+  for (const a of keys) for (const b of keys) { if (a === b) continue; let hit = 0; const d = []; for (const t of ev[a]) { const nx = ev[b].find(x => x > t && x - t <= 900000); if (nx) { hit++; d.push((nx - t) / 60000); } } if (ev[a].length >= 2 && hit / ev[a].length >= 0.5) { d.sort((x, y) => x - y); pairs.push({ a, b, hit, tot: ev[a].length, med: Math.round(d[Math.floor(d.length / 2)]) }); } }
+  pairs.sort((x, y) => y.hit / y.tot - x.hit / x.tot || y.tot - x.tot);
+  // можливий розвиток: остання подія + відома закономірність, яка ще не справдилась
+  let outlook = null;
+  const recent = keys.map(k => [k, ev[k][ev[k].length - 1]]).filter(([, t]) => now - t <= 900000).sort((x, y) => y[1] - x[1]);
+  for (const [k, t] of recent) { const p = pairs.find(p => p.a === k && !ev[p.b].some(x => x > t)); if (p) { outlook = { p, t }; break; } }
+  const peak = hours.reduce((bi, h, i) => h.n > hours[bi].n ? i : bi, 0);
+  const peakT = new Date(now - (23 - peak) * 3600000); const peakS = String(peakT.getHours()).padStart(2, '0') + ':00';
+  const cs = calls().map(n => [n, list.filter(m => m.text.toLowerCase().includes(n.toLowerCase())).length]).filter(x => x[1]).sort((a, b) => b[1] - a[1]);
+  const logs = list.filter(m => m.cat === 'log').slice(-5).map(m => `  ${hhmm(m.t)}  ${m.text}`).join('\n') || '  —';
+  const tr = (v) => en ? (v > 0 ? 'rising' : v < 0 ? 'falling' : 'steady') : (v > 0 ? 'зростає' : v < 0 ? 'спадає' : 'стабільно');
+  const L1 = en ? [
+    `24 h ANALYTICS · ${new Date().toLocaleDateString(loc())} ${hhmm(now)}`, '',
+    `1. VOLUME: ${list.length} messages. Threat ${c.crit || 0} · tactical ${c.tact || 0} · logistics ${c.log || 0} · coords ${c.coord || 0} · noise ${c.noise || 0}.`,
+    list.length ? `   Busiest hour: ${peakS} (${hours[peak].n}).` : null, '',
+    '2. THREATS (events / last hour / trend):', trend.map(([k, n, l, v]) => `  ${thrName(k)}: ${n} / ${l} / ${tr(v)}`).join('\n') || '  —', '',
+    '3. PATTERNS IN THIS LOG:', pairs.slice(0, 5).map(p => `  After ${thrName(p.a)}, ${thrName(p.b)} followed within 15 min in ${p.hit} of ${p.tot} cases (typically ~${p.med} min).`).join('\n') || '  Not enough repeated events to see a pattern.', '',
+    '4. POSSIBLE DEVELOPMENT:', outlook ? `  Latest: ${thrName(outlook.p.a)} at ${hhmm(outlook.t)}. In this log it was followed by ${thrName(outlook.p.b)} in ${outlook.p.hit} of ${outlook.p.tot} cases, typically after ~${outlook.p.med} min.` : '  No active pattern right now.', '',
+    '5. LOGISTICS (latest requests):', logs, '',
+    '6. MOST ACTIVE CALLSIGNS: ' + (cs.slice(0, 5).map(([n, x]) => `${n} ×${x}`).join(', ') || '—'), '',
+    'Statistics of this device’s log, not a forecast. The operator decides.'
+  ] : [
+    `АНАЛІТИКА ЗА 24 ГОД · ${new Date().toLocaleDateString(loc())} ${hhmm(now)}`, '',
+    `1. ОБСЯГ: ${list.length} ${pl(list.length, 'повідомлення', 'повідомлення', 'повідомлень')}. Загроза ${c.crit || 0} · тактика ${c.tact || 0} · логістика ${c.log || 0} · координати ${c.coord || 0} · фон ${c.noise || 0}.`,
+    list.length ? `   Найактивніша година: ${peakS} (${hours[peak].n}).` : null, '',
+    '2. ЗАГРОЗИ (подій / за останню годину / тенденція):', trend.map(([k, n, l, v]) => `  ${k}: ${n} / ${l} / ${tr(v)}`).join('\n') || '  —', '',
+    '3. ЗАКОНОМІРНОСТІ ЦЬОГО ЖУРНАЛУ:', pairs.slice(0, 5).map(p => `  Після «${p.a}» протягом 15 хв було «${p.b}»: ${p.hit} з ${p.tot} випадків (зазвичай через ~${p.med} хв).`).join('\n') || '  Замало повторюваних подій, щоб побачити закономірність.', '',
+    '4. МОЖЛИВИЙ РОЗВИТОК:', outlook ? `  Останнє: «${outlook.p.a}» о ${hhmm(outlook.t)}. У цьому журналі після цього було «${outlook.p.b}» у ${outlook.p.hit} з ${outlook.p.tot} випадків, зазвичай через ~${outlook.p.med} хв.` : '  Зараз активної закономірності немає.', '',
+    '5. ЛОГІСТИКА (останні запити):', logs, '',
+    '6. НАЙАКТИВНІШІ ПОЗИВНІ: ' + (cs.slice(0, 5).map(([n, x]) => `${n} ×${x}`).join(', ') || '—'), '',
+    'Це статистика журналу цього пристрою, а не прогноз. Рішення — за оператором.'
+  ];
+  return { hours, text: L1.filter(x => x !== null).join('\n') };
+}
 const exportJson = () => JSON.stringify({ app: 'Ефір-ШІ / SITREP-AI', exported: new Date().toISOString(), messages: msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => ({ time: new Date(m.t).toISOString(), text: m.text, category: m.cat, threats: m.threats, duration_s: m.dur || null })) }, null, 2);
 function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); }
 
 const closeSheets = () => document.querySelectorAll('.sheet').forEach(s => s.classList.remove('on'));
 document.querySelectorAll('.sheet').forEach(s => s.addEventListener('click', (e) => { if (e.target === s || e.target.closest('[data-close]')) closeSheets(); }));
-$('#bRep').onclick = () => { $('#repTxt').textContent = sitrep(); $('#shRep').classList.add('on'); };
+let repTab = 'sit';
+function showRep() {
+  document.querySelectorAll('#repTabs .chip').forEach(c => c.classList.toggle('on', c.dataset.t === repTab));
+  $('#anBox').hidden = repTab !== 'an';
+  if (repTab === 'sit') { $('#repTxt').textContent = sitrep(); return; }
+  const a = analytics();
+  const mx = Math.max(1, ...a.hours.map(h => h.n));
+  $('#anBars').innerHTML = a.hours.map(h => `<div><i class="r" style="height:${100 * h.crit / mx}%"></i><i style="height:${100 * (h.n - h.crit) / mx}%"></i></div>`).join('');
+  $('#anFrom').textContent = hhmm(Date.now() - 24 * 3600000); $('#anTo').textContent = hhmm(Date.now());
+  $('#repTxt').textContent = a.text;
+}
+$('#repTabs').onclick = (e) => { const b = e.target.closest('.chip'); if (b) { repTab = b.dataset.t; showRep(); } };
+$('#bRep').onclick = () => { showRep(); $('#shRep').classList.add('on'); };
 $('#bCopy').onclick = async () => { try { await navigator.clipboard.writeText($('#repTxt').textContent); toast(L().copied, 2000); } catch (e) { toast(L().copyFail); } };
 $('#bShare').onclick = async () => { const text = $('#repTxt').textContent; if (navigator.share) { try { await navigator.share({ text }); } catch (e) {} } else $('#bCopy').click(); };
 $('#bJson').onclick = $('#bExport').onclick = () => download(`sitrep-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`, exportJson(), 'application/json');
 
 /* ---------- налаштування ---------- */
 $('#bLang').onclick = () => { set.ui = EN() ? 'uk' : 'en'; saveSet(); applyLang(); };
-$('#bSet').onclick = () => { $('#sModel').value = set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#shSet').classList.add('on'); };
+async function fillInputs() {
+  const sel = $('#sInput'); let list = [];
+  try { list = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications'); } catch (e) {}
+  sel.innerHTML = `<option value="">${L().inAuto}</option>` + list.map((d, i) => `<option value="${d.deviceId}">${(d.label || 'Вхід ' + (i + 1)).replace(/[<>&"]/g, '')}</option>`).join('');
+  sel.value = list.some(d => d.deviceId === set.input) ? set.input : '';
+  $('#sMode').value = set.mode;
+  $('#inNote').textContent = live && inputLabel ? L().inNow + inputLabel : L().inIdle;
+}
+const restart = () => { if (live) { stop(); start(); } };
+$('#sInput').onchange = (e) => { set.input = e.target.value; saveSet(); restart(); };
+$('#sMode').onchange = (e) => { set.mode = e.target.value; saveSet(); restart(); };
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => { log('змінився набір аудіопристроїв'); if ($('#shSet').classList.contains('on')) fillInputs(); });
+$('#bSet').onclick = () => { fillInputs(); $('#sModel').value = set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#shSet').classList.add('on'); };
 $('#sModel').onchange = (e) => { set.model = e.target.value; saveSet(); modelState = 'none'; modelWait = null; pill(); toast(L().newModel, 5000); };
-$('#sLang').onchange = (e) => { set.lang = e.target.value; saveSet(); };
+$('#sLang').onchange = (e) => { set.lang = e.target.value; saveSet(); applyLang(); };
+$('#spk').onclick = (e) => { const b = e.target.closest('.chip'); if (!b) return; set.lang = b.dataset.l; saveSet(); applyLang(); };
 $('#sCalls').onchange = (e) => { set.calls = e.target.value; saveSet(); render(); };
 $('#sKeep').onchange = (e) => { set.keep = +e.target.value; saveSet(); prune(); };
 let wipeArm = false;
@@ -402,7 +486,7 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
   db = await openDB();
   msgs = await dbAll();
   msgs.forEach(m => seen.add(m.id));
-  if (NATIVE) { set.model = 'onnx-community/whisper-base'; $('#sModel').disabled = true; }
+  if (NATIVE) { const sm = $('#sModel option[value$="small"]'); if (sm) sm.remove(); if (/small/.test(set.model)) set.model = 'onnx-community/whisper-base'; }
   prune(); applyLang();
   setInterval(() => { prune(); if (!player || player.paused) render(); else renderSum(); }, 30000);
   addEventListener('online', pill); addEventListener('offline', pill);
@@ -417,5 +501,5 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
     catch (e) { console.log('EFIR_RESULT fail ' + e.message); }
     console.log('EFIR_DIAG ' + diag.join(' || '));
   }).catch(() => {});
-  window.__efir = { Segmenter, addText, sitrep, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };
+  window.__efir = { Segmenter, addText, sitrep, analytics, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };
 })();
