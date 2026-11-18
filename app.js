@@ -158,12 +158,36 @@ function addText(text, t = Date.now(), dur = 0, audio = null) {
 
 /* ---------- розпізнавання ---------- */
 let worker = null, modelState = 'none', modelWait = null, device = '';
+// Нативний рушій (whisper.cpp) у встановленому застосунку; у браузері — рушій на JavaScript
+const CAP = window.Capacitor;
+let useNative = NATIVE && !!(CAP && CAP.isPluginAvailable && CAP.isPluginAvailable('Whisper'));
+const nat = (m, o) => (CAP.Plugins && CAP.Plugins.Whisper && CAP.Plugins.Whisper[m]) ? CAP.Plugins.Whisper[m](o) : CAP.nativePromise('Whisper', m, o);
+const nativeModel = () => /tiny/.test(set.model) ? 'tiny' : 'base';
+function pcmB64(f) {
+  const b = new Uint8Array(f.length * 2), v = new DataView(b.buffer);
+  for (let i = 0; i < f.length; i++) v.setInt16(i * 2, Math.max(-1, Math.min(1, f[i])) * 32767, true);
+  let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+async function loadNative() {
+  modelState = 'loading'; pill();
+  $('#load').classList.add('on'); $('#loadTxt').textContent = L().loadNative; $('#loadBar').style.width = '60%';
+  try {
+    const r = await nat('load', { model: nativeModel() });
+    log(`нативний рушій готовий: ${nativeModel()}, ${r.ms} мс, потоків ${r.threads}`);
+    modelState = 'ready'; device = 'native'; pill(); $('#load').classList.remove('on');
+  } catch (e) {
+    log('нативний рушій не запустився: ' + (e && e.message || e) + ' — перехід на резервний');
+    useNative = false; modelState = 'none';
+    throw e;
+  }
+}
 const jobs = new Map();
 
 function pill() {
   const p = $('#pModel');
   p.className = 'pill ' + (modelState === 'ready' ? 'ok' : modelState === 'error' ? 'bad' : modelState === 'loading' ? 'warn' : '');
-  p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
+  p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : device === 'native' ? 'NATIVE' : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
   const n = $('#pNet'); n.className = 'pill ' + (navigator.onLine ? '' : 'ok'); n.textContent = navigator.onLine ? L().net : L().off;
   const m = $('#pMic'); m.className = 'pill ' + (live ? 'ok' : ''); m.textContent = live ? L().micOn + (inputLabel ? ' · ' + inputLabel.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 18) : '') : L().mic + ' —';
 }
@@ -171,6 +195,7 @@ function pill() {
 function ensureModel() {
   if (modelState === 'ready') return Promise.resolve();
   if (modelWait) return modelWait;
+  if (useNative) { modelWait = loadNative().then(() => { modelWait = null; }, () => { modelWait = null; return ensureModel(); }); return modelWait; }
   modelState = 'loading'; pill();
   $('#load').classList.add('on'); $('#loadTxt').textContent = NATIVE ? L().loadNative : L().loadWeb; $('#loadBar').style.width = '0';
   modelWait = new Promise((res, rej) => {
@@ -208,6 +233,13 @@ function transcribe(audio16k, t) {
       if (m) m.ms = ms; else render();
       res(m);
     });
+    if (device === 'native') {
+      const t0 = performance.now();
+      nat('transcribe', { pcm: pcmB64(audio16k), lang: set.lang }).then(
+        (r) => { const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j(r.text || '', r.ms || Math.round(performance.now() - t0)); },
+        (e) => { log('помилка розпізнавання: ' + (e && e.message || e)); const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j('', 0); });
+      return;
+    }
     worker.postMessage({ type: 'run', id: ph.id, audio: audio16k, lang: set.lang }, [audio16k.buffer]);
   });
 }
@@ -492,12 +524,12 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
   addEventListener('online', pill); addEventListener('offline', pill);
   document.addEventListener('visibilitychange', async () => { if (live && document.visibilityState === 'visible' && !lock) try { lock = await navigator.wakeLock.request('screen'); } catch (e) {} });
   if (!NATIVE && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-  log(`запуск · ${NATIVE ? 'застосунок' : 'браузер'} · ${navigator.userAgent.replace(/^.*?(Android [^;)]+).*?(Chrome\/[\d.]+).*$/, '$1 · $2')} · GPU ${'gpu' in navigator ? 'є' : 'немає'}`);
+  log(`запуск · ${NATIVE ? 'застосунок' : 'браузер'} · ${navigator.userAgent.replace(/^.*?(Android [^;)]+).*?(Chrome\/[\d.]+).*$/, '$1 · $2')} · GPU ${'gpu' in navigator ? 'є' : 'немає'} · рушій ${useNative ? 'нативний whisper.cpp' : 'JavaScript'}`);
   // самоперевірка для автоматичного тесту збірки
   fetch('autotest.json').then(r => r.ok ? r.json() : null).then(async (cfg) => {
     if (!cfg) return;
     try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); console.log('EFIR_MIC ok ' + (s.getAudioTracks()[0].label || '')); s.getTracks().forEach(t => t.stop()); } catch (e) { console.log('EFIR_MIC fail ' + e.name + ': ' + e.message); }
-    try { const r = await fetch('demo/demo.mp3'); const t0 = performance.now(); await runFile(await r.arrayBuffer(), 'autotest'); const out = msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => m.text); console.log('EFIR_RESULT ' + JSON.stringify({ state: modelState, device, n: out.length, sec: Math.round((performance.now() - t0) / 1000), first: out.slice(0, 3) })); }
+    try { const r = await fetch('demo/demo.mp3'); const t0 = performance.now(); await runFile(await r.arrayBuffer(), 'autotest'); const out = msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => m.text); const done = msgs.filter(m => !m.pending && m.ms); const audio = done.reduce((a, m) => a + (m.dur || 0), 0), work = done.reduce((a, m) => a + m.ms, 0) / 1000; console.log('EFIR_RESULT ' + JSON.stringify({ state: modelState, device, n: out.length, sec: Math.round((performance.now() - t0) / 1000), audioSec: Math.round(audio), workSec: +work.toFixed(1), avgMsPerMsg: done.length ? Math.round(work * 1000 / done.length) : 0, first: out.slice(0, 3) })); }
     catch (e) { console.log('EFIR_RESULT fail ' + e.message); }
     console.log('EFIR_DIAG ' + diag.join(' || '));
   }).catch(() => {});

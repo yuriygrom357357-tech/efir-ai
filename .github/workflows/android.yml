@@ -26,24 +26,15 @@ jobs:
           mkdir -p native/www
           cp -r index.html app.js rules.js asr-worker.js tap.js sw.js fonts.css manifest.webmanifest icon-192.png icon-512.png vendor fonts demo native/www/
 
-      - name: Вкласти модель розпізнавання (для роботи без мережі)
+      - name: Модель і рушій whisper.cpp
         run: |
           trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
-          for MODEL in onnx-community/whisper-base onnx-community/whisper-tiny; do
-          D=native/www/models/$MODEL
-          mkdir -p $D/onnx
-          B=https://huggingface.co/$MODEL/resolve/main
-          for f in config.json generation_config.json preprocessor_config.json tokenizer.json tokenizer_config.json; do
-            curl -fsSL "$B/$f" -o "$D/$f"
-          done
-          for f in added_tokens.json special_tokens_map.json vocab.json merges.txt normalizer.json; do
-            curl -fsSL "$B/$f" -o "$D/$f" || rm -f "$D/$f"
-          done
-          for f in encoder_model.onnx decoder_model_merged_q4.onnx encoder_model_quantized.onnx decoder_model_merged_quantized.onnx; do
-            curl -fsSL "$B/onnx/$f" -o "$D/onnx/$f"
-          done
-          done
-          du -sh native/www/models/*/*
+          git clone -q --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp native/whisper.cpp
+          mkdir -p native/ggml
+          B=https://huggingface.co/ggerganov/whisper.cpp/resolve/main
+          curl -fsSL "$B/ggml-base-q5_1.bin" -o native/ggml/ggml-base.bin || curl -fsSL "$B/ggml-base.bin" -o native/ggml/ggml-base.bin
+          curl -fsSL "$B/ggml-tiny-q5_1.bin" -o native/ggml/ggml-tiny.bin || curl -fsSL "$B/ggml-tiny.bin" -o native/ggml/ggml-tiny.bin
+          ls -la native/ggml
 
       - name: Capacitor → Android-проєкт
         working-directory: native
@@ -59,8 +50,27 @@ jobs:
           R=android/app/src/main/res
           rm -rf $R/mipmap-anydpi-v26
           cp -r res/. $R/
-          # не стискати модель і wasm усередині APK
-          printf '\nandroid { androidResources { noCompress += ["onnx", "wasm"] } }\n' >> android/app/build.gradle
+          # нативний рушій: джерела, моделі, збірка через CMake
+          J=android/app/src/main/java/ua/efirai/app
+          cp android-src/java/*.java $J/
+          mkdir -p android/app/src/main/cpp android/app/src/main/assets/ggml
+          cp android-src/cpp/* android/app/src/main/cpp/
+          cp ggml/*.bin android/app/src/main/assets/ggml/
+          NDKV=$(basename "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}")
+          echo "NDK: $NDKV"
+          cat >> android/app/build.gradle <<GRADLE
+
+          android {
+              ${NDKV:+ndkVersion "$NDKV"}
+              androidResources { noCompress += ["onnx", "wasm", "bin"] }
+              defaultConfig {
+                  ndk { abiFilters "arm64-v8a", "x86_64" }
+                  externalNativeBuild { cmake { arguments "-DWHISPER_DIR=$PWD/whisper.cpp" } }
+              }
+              externalNativeBuild { cmake { path "src/main/cpp/CMakeLists.txt" } }
+          }
+          GRADLE
+          tail -12 android/app/build.gradle
 
       - name: Зібрати APK
         working-directory: native/android
