@@ -80,3 +80,27 @@ jobs:
             Модель розпізнавання вже всередині — мережа не потрібна. Перед оновленням видаліть попередню версію.
           files: efir-ai.apk
           make_latest: true
+
+      - name: Тестова збірка із самоперевіркою
+        working-directory: native/android
+        run: |
+          echo '{"autotest":true}' > app/src/main/assets/public/autotest.json
+          ./gradlew --no-daemon assembleDebug -q
+          cp app/build/outputs/apk/debug/app-debug.apk ../../efir-ai-test.apk
+      - name: Увімкнути KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Самоперевірка на емуляторі Android
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          ram-size: 4096M
+          disk-size: 6000M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash native/emutest.sh efir-ai-test.apk

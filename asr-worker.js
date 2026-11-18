@@ -24,11 +24,15 @@ async function load(model) {
     await p(new Float32Array(16000), { language: 'uk', task: 'transcribe' }); // прогрів
     return p;
   };
-  let err = null;
-  for (const dev of hasGPU ? ['webgpu', 'wasm'] : ['wasm']) {
-    try { asr = await tryDev(dev); device = dev; break; } catch (e) { err = e; asr = null; }
+  // WebGPU беремо лише тоді, коли пристрій справді віддає графічний адаптер
+  let gpuOk = false;
+  if (hasGPU) { try { gpuOk = !!(await navigator.gpu.requestAdapter()); } catch (e) { gpuOk = false; } }
+  const errs = [];
+  for (const dev of gpuOk ? ['webgpu', 'wasm'] : ['wasm']) {
+    postMessage({ type: 'log', text: `спроба ${dev}` });
+    try { asr = await tryDev(dev); device = dev; break; } catch (e) { errs.push(`${dev}: ${String(e && e.message || e).slice(0, 300)}`); asr = null; }
   }
-  if (!asr) throw err;
+  if (!asr) throw new Error(errs.join(' | '));
   postMessage({ type: 'ready', device, model });
 }
 
@@ -39,7 +43,7 @@ onmessage = async (e) => {
       asr = null;
       if (m.local) { env.allowLocalModels = true; env.localModelPath = new URL('./models/', import.meta.url).href; }
       try { await load(m.model); }
-      catch (e1) { if (!m.local) throw e1; env.allowLocalModels = false; await load(m.model); }   // вбудованої моделі немає — пробуємо мережу
+      catch (e1) { if (!m.local) throw e1; postMessage({ type: 'log', text: 'вбудована модель не запустилась: ' + String(e1 && e1.message || e1).slice(0, 400) }); env.allowLocalModels = false; await load(m.model); }   // вбудованої моделі немає — пробуємо мережу
     }
     else if (m.type === 'run') {
       const t0 = performance.now();

@@ -67,6 +67,8 @@ function applyLang() {
   pill(); render();
 }
 
+const diag = [];          // журнал діагностики: показується в налаштуваннях
+function log(s) { const line = `${new Date().toLocaleTimeString('uk-UA', { hour12: false })} ${s}`; diag.push(line); if (diag.length > 60) diag.shift(); console.log('EFIR ' + s); const d = document.querySelector('#diag'); if (d) d.textContent = diag.join('\n'); }
 let msgs = [];            // {id,t,text,cat,threats,dur,audio,pending}
 let win = 600000;         // активний часовий зріз, мс (0 = всі)
 let seq = 0;
@@ -169,14 +171,16 @@ function ensureModel() {
   modelWait = new Promise((res, rej) => {
     if (!worker) {
       worker = new Worker('asr-worker.js', { type: 'module' });
-      worker.onerror = (e) => { modelState = 'error'; pill(); $('#loadTxt').textContent = L().workerFail + (e.message || '?'); modelWait = null; rej(e); };
+      worker.onerror = (e) => { log('worker: ' + (e.message || 'помилка запуску')); modelState = 'error'; pill(); $('#loadTxt').textContent = L().workerFail + (e.message || '?'); modelWait = null; rej(e); };
     }
     worker.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'progress' && m.total) { const mb = (x) => (x / 1048576).toFixed(0); $('#loadBar').style.width = Math.min(100, 100 * m.loaded / m.total) + '%'; $('#loadTxt').textContent = L().loading(mb(m.loaded), mb(m.total)); }
-      else if (m.type === 'ready') { modelState = 'ready'; device = m.device; pill(); $('#load').classList.remove('on'); modelWait = null; res(); }
+      if (m.type === 'log') log('модель: ' + m.text);
+      else if (m.type === 'progress' && m.total) { const mb = (x) => (x / 1048576).toFixed(0); $('#loadBar').style.width = Math.min(100, 100 * m.loaded / m.total) + '%'; $('#loadTxt').textContent = L().loading(mb(m.loaded), mb(m.total)); }
+      else if (m.type === 'ready') { log(`модель готова (${m.device})`); modelState = 'ready'; device = m.device; pill(); $('#load').classList.remove('on'); modelWait = null; res(); }
       else if (m.type === 'result') { const j = jobs.get(m.id); jobs.delete(m.id); if (j) j(m.text, m.ms); }
       else if (m.type === 'error') {
+        log(`помилка (${m.stage}): ${m.message}`);
         if (m.stage === 'load') { modelState = 'error'; pill(); $('#loadTxt').textContent = L().loadFail(m.message); modelWait = null; rej(new Error(m.message)); }
         else { const j = jobs.get(m.id); jobs.delete(m.id); if (j) j('', 0); }
       }
@@ -263,7 +267,9 @@ function level(rms, sp) {
 async function start() {
   const go = $('#bGo'); go.disabled = true; $('#bGoT').textContent = L().prep;
   try {
+    log('запит мікрофона');
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    log('мікрофон дозволено: ' + (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].label || 'без назви'));
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
     await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 1500))]);
     await ensureModel();
@@ -276,8 +282,10 @@ async function start() {
     src.connect(node); node.connect(mute); mute.connect(ctx.destination);
     node._src = src; node._seg = seg;
     try { lock = await navigator.wakeLock.request('screen'); } catch (e) {}
+    log(`слухаю, ${ctx.sampleRate} Гц, стан звуку: ${ctx.state}`);
     live = true; go.classList.add('live'); $('#bGoT').textContent = L().stop;
   } catch (e) {
+    log('старт не вдався: ' + (e && (e.name + ': ' + e.message) || e));
     stop();
     toast(e && e.name === 'NotAllowedError' ? L().noMic : L().startFail + (e && e.message || e), 8000);
   }
@@ -400,5 +408,14 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
   addEventListener('online', pill); addEventListener('offline', pill);
   document.addEventListener('visibilitychange', async () => { if (live && document.visibilityState === 'visible' && !lock) try { lock = await navigator.wakeLock.request('screen'); } catch (e) {} });
   if (!NATIVE && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  log(`запуск · ${NATIVE ? 'застосунок' : 'браузер'} · ${navigator.userAgent.replace(/^.*?(Android [^;)]+).*?(Chrome\/[\d.]+).*$/, '$1 · $2')} · GPU ${'gpu' in navigator ? 'є' : 'немає'}`);
+  // самоперевірка для автоматичного тесту збірки
+  fetch('autotest.json').then(r => r.ok ? r.json() : null).then(async (cfg) => {
+    if (!cfg) return;
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); console.log('EFIR_MIC ok ' + (s.getAudioTracks()[0].label || '')); s.getTracks().forEach(t => t.stop()); } catch (e) { console.log('EFIR_MIC fail ' + e.name + ': ' + e.message); }
+    try { const r = await fetch('demo/demo.mp3'); const t0 = performance.now(); await runFile(await r.arrayBuffer(), 'autotest'); const out = msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => m.text); console.log('EFIR_RESULT ' + JSON.stringify({ state: modelState, device, n: out.length, sec: Math.round((performance.now() - t0) / 1000), first: out.slice(0, 3) })); }
+    catch (e) { console.log('EFIR_RESULT fail ' + e.message); }
+    console.log('EFIR_DIAG ' + diag.join(' || '));
+  }).catch(() => {});
   window.__efir = { Segmenter, addText, sitrep, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };
 })();
