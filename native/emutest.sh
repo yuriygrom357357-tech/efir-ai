@@ -13,6 +13,7 @@ done
 adb logcat -d > logcat.txt
 grep -o "EFIR_MIC.*" logcat.txt | head -1 | cut -c1-300 | sed 's/^/::notice::/'
 grep -o "EFIR_RESULT.*" logcat.txt | head -1 | cut -c1-1400 | sed 's/^/::notice::/'
+grep -o "EFIR_ONE.*" logcat.txt | head -1 | cut -c1-400 | sed 's/^/::notice::/'
 grep -o "EFIR_OLD.*" logcat.txt | head -1 | cut -c1-1400 | sed 's/^/::notice::/'
 # збірку публікуємо лише коли швидкий рушій справді розпізнав демо-запис на емуляторі
 if grep -o "EFIR_RESULT.*" logcat.txt | head -1 | grep -q '"engine":"moonshine-uk","n":\(9\|10\|11\)'; then touch "$GITHUB_WORKSPACE/emu-ok"; else echo "::error::Емулятор: швидкий рушій не підтверджено — збірку не опубліковано"; fi

@@ -12,7 +12,7 @@ const pl = (n, a, b, c) => { const d = n % 10, h = n % 100; return d === 1 && h 
 const I = {
   uk: {
     lInput: 'ДЖЕРЕЛО ЗВУКУ', inAuto: 'Автоматично (вибирає система)', modeMic: 'Мікрофон · шумозаглушення', modeLine: 'Кабель · без обробки', inNow: 'Зараз слухаю: ', inIdle: 'Активний вхід буде видно після натискання «Слухати».',
-    lEngine: 'РОЗПІЗНАВАННЯ', engLocal: 'НА ПРИСТРОЇ', engCloud: 'ІНТЕРНЕТ', cloudWarn: 'Інтернет-режим: звук іде на сервери Google. Швидко, але не для бойового ефіру.', cloudPill: 'GOOGLE · ІНТЕРНЕТ', cloudNet: 'Інтернет-режим зупинено: немає мережі або сервіс недоступний.', cloudLive: 'слухаю…',
+    lEngine: 'РОЗПІЗНАВАННЯ', engLocal: 'НА ПРИСТРОЇ', engCloud: 'ІНТЕРНЕТ', cloudWarn: 'Інтернет-режим: звук іде на сервери Google. Швидко, але не для бойового ефіру.', cloudPill: 'GOOGLE · ІНТЕРНЕТ', cloudNet: (c) => `Інтернет-режим не запустився (код: ${c}). Він працює лише в Google Chrome з увімкненим інтернетом. Повертаю розпізнавання на пристрої.`, cloudLive: 'слухаю…',
     auto: 'АВТО', tabSit: 'Зведення', tabAn: 'Аналітика 24 год', anAxis: 'повідомлень за годину', slowHint: 'Повільно розпізнає? ☰ → Модель → «Tiny — найшвидша».',
     listen: 'СЛУХАТИ', stop: 'ЗУПИНИТИ', prep: 'ГОТУЮ…', net: 'МЕРЕЖА Є', off: 'АВТОНОМНО', model: 'МОДЕЛЬ', mic: 'МІКРОФОН', micOn: 'СЛУХАЮ',
     modelTitle: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', loadWeb: 'Готую модель. Перший раз вона завантажується з мережі, далі працює без неї.', loadNative: 'Запускаю модель розпізнавання…',
@@ -34,7 +34,7 @@ const I = {
   },
   en: {
     lInput: 'AUDIO SOURCE', inAuto: 'Automatic (system default)', modeMic: 'Microphone · noise suppression', modeLine: 'Cable · no processing', inNow: 'Now listening to: ', inIdle: 'The active input is shown after you press Listen.',
-    lEngine: 'RECOGNITION', engLocal: 'ON DEVICE', engCloud: 'INTERNET', cloudWarn: 'Internet mode: audio goes to Google servers. Fast, but not for live combat traffic.', cloudPill: 'GOOGLE · ONLINE', cloudNet: 'Internet mode stopped: no network or the service is unavailable.', cloudLive: 'listening…',
+    lEngine: 'RECOGNITION', engLocal: 'ON DEVICE', engCloud: 'INTERNET', cloudWarn: 'Internet mode: audio goes to Google servers. Fast, but not for live combat traffic.', cloudPill: 'GOOGLE · ONLINE', cloudNet: (c) => `Internet mode did not start (code: ${c}). It works only in Google Chrome with a network connection. Switching back to on-device recognition.`, cloudLive: 'listening…',
     auto: 'AUTO', tabSit: 'Summary', tabAn: '24 h analytics', anAxis: 'messages per hour', slowHint: 'Slow transcription? ☰ → Model → “Tiny — fastest”.',
     listen: 'LISTEN', stop: 'STOP', prep: 'STARTING…', net: 'ONLINE', off: 'OFFLINE', model: 'MODEL', mic: 'MIC', micOn: 'LISTENING',
     modelTitle: 'SPEECH MODEL', loadWeb: 'Preparing the model. It downloads once, then works without a network.', loadNative: 'Starting the speech model…',
@@ -324,7 +324,7 @@ function startCloud() {
     log('інтернет-режим: ' + e.error);
     if (e.error === 'no-speech' || e.error === 'aborted') return;
     const fatal = e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'network' || e.error === 'language-not-supported';
-    if (fatal) { toast(e.error === 'not-allowed' ? L().noMic : L().cloudNet, 8000); stop(); }
+    if (fatal) { stop(); if (e.error === 'not-allowed') toast(L().noMic, 9000); else { set.engine = 'local'; saveSet(); applyLang(); toast(L().cloudNet(e.error), 15000); } }
   };
   rec.onend = () => { if (live && rec) { try { rec.start(); } catch (e) { log('інтернет-режим: перезапуск не вдався'); stop(); } } };   // Chrome сам зупиняється після паузи
   rec.start();
@@ -406,7 +406,7 @@ async function runFile(buf, label) {
     // у застосунку два повідомлення розпізнаються одночасно
     let next = 0;
     const lane = async () => { while (next < segs.length) { const i = next++; await transcribe(segs[i], t0 + i * 1000); } };
-    await Promise.all(useNative ? [lane(), lane()] : [lane()]);
+    await Promise.all((window.__lanes || (useNative ? 2 : 1)) > 1 ? [lane(), lane()] : [lane()]);
     window.__runSec = +((performance.now() - t1) / 1000).toFixed(1);
     toast(L().fDone(label, audioSec.toFixed(0), ((performance.now() - t1) / 1000).toFixed(1)), 9000);
   } catch (e) { toast(`${label}: ` + (e && e.message || e), 9000); }
@@ -596,7 +596,9 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
         const audio = done.reduce((a, m) => a + (m.dur || 0), 0), work = done.reduce((a, m) => a + m.ms, 0) / 1000;
         return { engine: natEngine || device, n: out.length, runSec: window.__runSec, sec: Math.round((performance.now() - t0) / 1000), audioSec: Math.round(audio), workSec: +work.toFixed(1), avgMsPerMsg: done.length ? Math.round(work * 1000 / done.length) : 0, cats: msgs.filter(m => !m.pending).map(m => m.cat).join(','), text: out };
       };
-      const fast = await pass('fast');
+      window.__lanes = 1; const one = await pass('fast'); delete one.text;
+      console.log('EFIR_ONE ' + JSON.stringify(one));
+      window.__lanes = 2; const fast = await pass('fast');
       console.log('EFIR_RESULT ' + JSON.stringify(fast));
       if (useNative) { const old = await pass('whisper'); console.log('EFIR_OLD ' + JSON.stringify(old)); }
     }
