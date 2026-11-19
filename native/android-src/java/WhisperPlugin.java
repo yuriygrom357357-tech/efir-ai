@@ -126,6 +126,46 @@ public class WhisperPlugin extends Plugin {
         });
     }
 
+    /**
+     * Обрізати тишу довкола мовлення: 150 мс перед початком і 50 мс після кінця.
+     * Moonshine на довгій тиші в кінці фрагмента вигадує зайві слова; заміри на демо-записі це підтвердили.
+     */
+    static float[] tighten(float[] x) {
+        final int fr = 160;
+        int n = x.length / fr;
+        if (n < 10) return x;
+        float[] e = new float[n];
+        float max = 0;
+        for (int i = 0; i < n; i++) {
+            double sum = 0;
+            for (int j = i * fr; j < (i + 1) * fr; j++) sum += x[j] * x[j];
+            e[i] = (float) Math.sqrt(sum / fr);
+            if (e[i] > max) max = e[i];
+        }
+        float thr = Math.max(0.006f, max * 0.05f);
+        int first = -1, last = -1;
+        for (int i = 0; i < n; i++) if (e[i] > thr) { if (first < 0) first = i; last = i; }
+        if (first < 0) return x;
+        int a = first * fr - 150 * 16, b = (last + 1) * fr + 50 * 16;
+        float[] y = new float[b - a];
+        int from = Math.max(0, a), to = Math.min(x.length, b);
+        System.arraycopy(x, from, y, from - a, to - from);
+        return y;
+    }
+
+    /** Ознаки вигаданого тексту: час на кшталт 12:01:21, забагато слів на секунду, те саме слово чотири рази поспіль. */
+    static boolean suspicious(String t, float sec) {
+        if (t == null) return true;
+        t = t.trim();
+        if (t.isEmpty()) return false;
+        if (t.matches(".*\\d{1,2}:\\d{2}.*")) return true;
+        String[] w = t.toLowerCase().split("\\s+");
+        if (w.length > sec * 5 + 4) return true;
+        int run = 1;
+        for (int i = 1; i < w.length; i++) { run = w[i].equals(w[i - 1]) ? run + 1 : 1; if (run >= 4) return true; }
+        return false;
+    }
+
     @PluginMethod
     public void transcribe(final PluginCall call) {
         final String b64 = call.getString("pcm", "");
@@ -140,20 +180,30 @@ public class WhisperPlugin extends Plugin {
                 for (int i = 0; i < audio.length; i++) audio[i] = sb.get(i) / 32768f;
                 long t0 = System.currentTimeMillis();
                 String text;
+                boolean rescued = false;
                 if (engine.startsWith("moonshine-")) {
                     OfflineRecognizer rec = ensureMoon(lang);
                     OfflineStream st = rec.createStream();
                     try {
-                        st.acceptWaveform(audio, 16000);
+                        st.acceptWaveform(tighten(audio), 16000);
                         rec.decode(st);
                         text = rec.getResult(st).getText();
                     } finally { st.release(); }
+                    // підозрілий результат перевіряємо повільнішою моделлю
+                    if (suspicious(text, audio.length / 16000f)) {
+                        try {
+                            ensureWhisper();
+                            String w = WhisperBridge.transcribe(ctx, audio, lang, threads());
+                            if (w != null) { text = w; rescued = true; }
+                        } catch (Throwable ignore) { }
+                    }
                 } else {
                     text = WhisperBridge.transcribe(ctx, audio, lang, threads());
                 }
                 if (text == null) { call.reject("transcribe failed"); return; }
                 JSObject r = new JSObject();
                 r.put("engine", engine);
+                r.put("rescued", rescued);
                 r.put("text", text.trim());
                 r.put("ms", System.currentTimeMillis() - t0);
                 call.resolve(r);

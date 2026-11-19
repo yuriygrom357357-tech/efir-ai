@@ -245,7 +245,7 @@ function transcribe(audio16k, t) {
     if (device === 'native') {
       const t0 = performance.now();
       nat('transcribe', { pcm: pcmB64(audio16k), lang: set.lang, model: nativeModel() }).then(
-        (r) => { if (r.engine && r.engine !== natEngine) { natEngine = r.engine; log('рушій: ' + natEngine); pill(); } const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j(r.text || '', r.ms || Math.round(performance.now() - t0)); },
+        (r) => { if (r.engine && r.engine !== natEngine) { natEngine = r.engine; log('рушій: ' + natEngine); pill(); } if (r.rescued) log('підозрілий текст швидкої моделі перевірено Whisper'); const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j(r.text || '', r.ms || Math.round(performance.now() - t0)); },
         (e) => { log('помилка розпізнавання: ' + (e && e.message || e)); const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j('', 0); });
       return;
     }
