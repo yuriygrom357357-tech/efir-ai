@@ -67,7 +67,7 @@ function applyLang() {
   document.querySelectorAll('[data-ip]').forEach(e => { e.placeholder = L()[e.dataset.ip]; });
   $('#bLang').textContent = EN() ? 'UA' : 'EN';
   document.querySelectorAll('#spk .chip').forEach(c => c.classList.toggle('on', c.dataset.l === set.lang));
-  $('#engRow').hidden = !SR;
+  $('#engRow').hidden = !cloudOK();
   document.querySelectorAll('#eng .chip').forEach(c => { c.classList.toggle('on', c.dataset.e === engine()); c.classList.toggle('cloud', c.dataset.e === 'cloud'); });
   $('#n1').textContent = EN() ? 'EFIR-AI · ЕФІР-ШІ' : 'ЕФІР-ШІ';
   $('#bGoT').textContent = live ? L().stop : L().listen;
@@ -304,7 +304,30 @@ class Segmenter {
 
 /* ---------- інтернет-режим: розпізнавання Google у браузері Chrome ---------- */
 const SR = !NATIVE && (window.SpeechRecognition || window.webkitSpeechRecognition);
-const engine = () => (SR && set.engine === 'cloud') ? 'cloud' : 'local';
+let natCloud = false;   // у застосунку: чи є на пристрої сервіс розпізнавання Google
+const cloudOK = () => !!SR || natCloud;
+const engine = () => (cloudOK() && set.engine === 'cloud') ? 'cloud' : 'local';
+const natOn = (ev, cb) => { const P = CAP.Plugins && CAP.Plugins.Whisper; if (P && P.addListener) P.addListener(ev, cb); else if (CAP.addListener) CAP.addListener('Whisper', ev, cb); };
+const cap1 = (t) => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+let cloudSub = false;
+function showInterim(txt) { if (!interim) { interim = { id: 'live' + Date.now(), t: Date.now(), dur: 0, pending: true }; msgs.push(interim); } interim.text = txt; renderFeed(); }
+function cloudFail(code) { log('інтернет-режим: ' + code); stop(); set.engine = 'local'; saveSet(); applyLang(); toast(L().cloudNet(code), 15000); }
+/* інтернет-режим у застосунку: системний розпізнавач Android (сервіс Google) */
+async function startCloudNative() {
+  try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); }
+  catch (e) { throw new Error(L().noMic); }
+  if (!cloudSub) {
+    cloudSub = true;
+    natOn('cloudPartial', (d) => { if (rec && d.text) showInterim(d.text.trim()); });
+    natOn('cloudFinal', (d) => { if (!rec) return; dropInterim(); const t = (d.text || '').trim(); if (t) addText(cap1(t)); else render(); });
+    natOn('cloudLevel', (d) => { if (rec) level(Math.max(0, Math.min(0.12, (d.db + 2) / 100)), d.db > 3); });
+    natOn('cloudError', (d) => { if (rec) cloudFail(d.name || d.code); });
+  }
+  const lang = ({ uk: 'uk-UA', en: 'en-US', ru: 'ru-RU' })[set.lang] || 'uk-UA';
+  rec = { stop() { nat('cloudStop', {}).catch(() => {}); } };
+  await nat('cloudStart', { lang });
+  log('інтернет-режим (застосунок): слухаю, мова ' + lang);
+}
 let rec = null, interim = null;
 function dropInterim() { if (interim) { msgs = msgs.filter(m => m !== interim); interim = null; } }
 function startCloud() {
@@ -315,7 +338,7 @@ function startCloud() {
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i], txt = r[0].transcript.trim();
       if (r.isFinal) { dropInterim(); if (txt) addText(txt.charAt(0).toUpperCase() + txt.slice(1)); else render(); }
-      else if (txt) { if (!interim) { interim = { id: 'live' + Date.now(), t: Date.now(), dur: 0, pending: true }; msgs.push(interim); } interim.text = txt; renderFeed(); }
+      else if (txt) showInterim(txt);
     }
   };
   rec.onspeechstart = () => level(0.06, true);
@@ -344,7 +367,7 @@ function level(rms, sp) {
 async function start() {
   const go = $('#bGo'); go.disabled = true; $('#bGoT').textContent = L().prep;
   if (engine() === 'cloud') {
-    try { startCloud(); live = true; go.classList.add('live'); $('#bGoT').textContent = L().stop; }
+    try { if (SR) startCloud(); else await startCloudNative(); live = true; go.classList.add('live'); $('#bGoT').textContent = L().stop; }
     catch (e) { log('інтернет-режим не стартував: ' + e.message); rec = null; toast(L().startFail + e.message, 8000); $('#bGoT').textContent = L().listen; }
     go.disabled = false; pill(); render(); return;
   }
@@ -517,15 +540,26 @@ function download(name, text, type) { const a = document.createElement('a'); a.h
 const closeSheets = () => document.querySelectorAll('.sheet').forEach(s => s.classList.remove('on'));
 document.querySelectorAll('.sheet').forEach(s => s.addEventListener('click', (e) => { if (e.target === s || e.target.closest('[data-close]')) closeSheets(); }));
 let repTab = 'sit';
+/* назви пунктів звіту — окремим кольором, щоб око одразу знаходило розділ */
+function repHtml(t) {
+  const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return t.split('\n').map((ln, i) => {
+    const m = /^(\d\.\s[^:]+:)(.*)$/.exec(ln);
+    if (m) return `<b class="hd">${esc(m[1])}</b>${esc(m[2])}`;
+    if (i === 0) return `<b class="tt">${esc(ln)}</b>`;
+    if (/^\s+[^\d\s][^:]*:$/.test(ln)) return `<b class="hd">${esc(ln)}</b>`;
+    return esc(ln);
+  }).join('\n');
+}
 function showRep() {
   document.querySelectorAll('#repTabs .chip').forEach(c => c.classList.toggle('on', c.dataset.t === repTab));
   $('#anBox').hidden = repTab !== 'an';
-  if (repTab === 'sit') { $('#repTxt').textContent = sitrep(); return; }
+  if (repTab === 'sit') { $('#repTxt').innerHTML = repHtml(sitrep()); return; }
   const a = analytics();
   const mx = Math.max(1, ...a.hours.map(h => h.n));
   $('#anBars').innerHTML = a.hours.map(h => `<div><i class="r" style="height:${100 * h.crit / mx}%"></i><i style="height:${100 * (h.n - h.crit) / mx}%"></i></div>`).join('');
   $('#anFrom').textContent = hhmm(Date.now() - 24 * 3600000); $('#anTo').textContent = hhmm(Date.now());
-  $('#repTxt').textContent = a.text;
+  $('#repTxt').innerHTML = repHtml(a.text);
 }
 $('#repTabs').onclick = (e) => { const b = e.target.closest('.chip'); if (b) { repTab = b.dataset.t; showRep(); } };
 $('#bRep').onclick = () => { showRep(); $('#shRep').classList.add('on'); };
@@ -577,6 +611,7 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
   msgs.forEach(m => seen.add(m.id));
   if (NATIVE) $('#sModel').innerHTML = '<option value="fast" data-i="mFast"></option><option value="whisper" data-i="mWhisper"></option>';
   prune(); applyLang();
+  if (useNative) nat('cloudAvailable', {}).then((r) => { natCloud = !!(r && r.ok); log('сервіс розпізнавання Google: ' + (natCloud ? 'є' : 'немає')); applyLang(); pill(); }, () => {});
   setInterval(() => { prune(); if (!player || player.paused) render(); else renderSum(); }, 30000);
   addEventListener('online', pill); addEventListener('offline', pill);
   document.addEventListener('visibilitychange', async () => { if (live && document.visibilityState === 'visible' && !lock) try { lock = await navigator.wakeLock.request('screen'); } catch (e) {} });
@@ -603,6 +638,14 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
       if (useNative) { const old = await pass('whisper'); console.log('EFIR_OLD ' + JSON.stringify(old)); }
     }
     catch (e) { console.log('EFIR_RESULT fail ' + e.message); }
+    if (useNative) try {
+      const av = await nat('cloudAvailable', {}); const evs = [];
+      ['cloudPartial', 'cloudFinal', 'cloudError', 'cloudReady'].forEach(n => natOn(n, (d) => evs.push(n + ':' + (d.name || d.text || ''))));
+      let started = 'ok'; try { await nat('cloudStart', { lang: 'uk-UA' }); } catch (e) { started = String(e && e.message || e); }
+      await new Promise(r => setTimeout(r, 6000));
+      await nat('cloudStop', {});
+      console.log('EFIR_CLOUD ' + JSON.stringify({ available: av.ok, started, events: evs.slice(0, 6) }));
+    } catch (e) { console.log('EFIR_CLOUD fail ' + (e && e.message || e)); }
     console.log('EFIR_DIAG ' + diag.join(' || '));
   }).catch(() => {});
   window.__efir = { Segmenter, addText, engine, sitrep, analytics, msgs: () => msgs, state: () => ({ modelState, device, live }), runFile };

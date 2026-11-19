@@ -1,5 +1,12 @@
 package ua.efirai.app;
 
+import android.content.Intent;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.util.Base64;
 
 import com.getcapacitor.JSObject;
@@ -19,6 +26,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -228,4 +236,149 @@ public class WhisperPlugin extends Plugin {
             }
         });
     }
+
+    /* ---------- інтернет-режим: системний розпізнавач Android (сервіс Google) ---------- */
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private SpeechRecognizer sr;
+    private boolean cloudOn = false;
+    private String cloudLang = "uk-UA";
+    private int softErrors = 0;
+    private long lastLevel = 0;
+
+    @PluginMethod
+    public void cloudAvailable(PluginCall call) {
+        boolean ok = false;
+        try { ok = SpeechRecognizer.isRecognitionAvailable(getContext()); } catch (Throwable ignore) { }
+        JSObject r = new JSObject();
+        r.put("ok", ok);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void cloudStart(final PluginCall call) {
+        cloudLang = call.getString("lang", "uk-UA");
+        ui.post(() -> {
+            try {
+                if (!SpeechRecognizer.isRecognitionAvailable(getContext())) { call.reject("no recognition service"); return; }
+                cloudOn = true;
+                softErrors = 0;
+                if (sr == null) {
+                    sr = SpeechRecognizer.createSpeechRecognizer(getContext());
+                    sr.setRecognitionListener(cloudListener);
+                }
+                listen();
+                call.resolve(new JSObject());
+            } catch (Throwable e) {
+                cloudOn = false;
+                call.reject("cloud: " + e);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void cloudStop(final PluginCall call) {
+        ui.post(() -> {
+            killCloud();
+            call.resolve(new JSObject());
+        });
+    }
+
+    private void killCloud() {
+        cloudOn = false;
+        ui.removeCallbacks(relisten);
+        if (sr != null) {
+            try { sr.cancel(); sr.destroy(); } catch (Throwable ignore) { }
+            sr = null;
+        }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        ui.post(this::killCloud);
+    }
+
+    private final Runnable relisten = () -> { if (cloudOn && sr != null) { try { listen(); } catch (Throwable e) { cloudError(-1, String.valueOf(e)); } } };
+
+    private void listen() {
+        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, cloudLang);
+        i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+        sr.startListening(i);
+    }
+
+    private void emit(String name, String key, String value) {
+        JSObject o = new JSObject();
+        o.put(key, value);
+        notifyListeners(name, o);
+    }
+
+    private void cloudError(int code, String name) {
+        killCloud();
+        JSObject o = new JSObject();
+        o.put("code", code);
+        o.put("name", name);
+        notifyListeners("cloudError", o);
+    }
+
+    private static String first(Bundle b) {
+        if (b == null) return "";
+        ArrayList<String> l = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        return l == null || l.isEmpty() || l.get(0) == null ? "" : l.get(0);
+    }
+
+    private final RecognitionListener cloudListener = new RecognitionListener() {
+        @Override public void onReadyForSpeech(Bundle params) { emit("cloudReady", "name", "ready"); }
+        @Override public void onBeginningOfSpeech() { }
+        @Override public void onBufferReceived(byte[] buffer) { }
+        @Override public void onEndOfSpeech() { }
+        @Override public void onEvent(int eventType, Bundle params) { }
+
+        @Override public void onRmsChanged(float rmsdB) {
+            long now = System.currentTimeMillis();
+            if (now - lastLevel < 120) return;
+            lastLevel = now;
+            JSObject o = new JSObject();
+            o.put("db", (double) rmsdB);
+            notifyListeners("cloudLevel", o);
+        }
+
+        @Override public void onPartialResults(Bundle partialResults) {
+            String t = first(partialResults);
+            if (!t.isEmpty()) emit("cloudPartial", "text", t);
+        }
+
+        @Override public void onResults(Bundle results) {
+            softErrors = 0;
+            emit("cloudFinal", "text", first(results));
+            if (cloudOn) ui.postDelayed(relisten, 60);   // сервіс слухає одну фразу — одразу запускаємо наступну
+        }
+
+        @Override public void onError(int error) {
+            if (!cloudOn) return;
+            // тиша або нерозбірливо — просто слухаємо далі
+            if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) { ui.postDelayed(relisten, 80); return; }
+            // сервіс зайнятий або збій клієнта — кілька спроб із паузою
+            if ((error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_CLIENT) && ++softErrors <= 6) {
+                try { sr.cancel(); } catch (Throwable ignore) { }
+                ui.postDelayed(relisten, 450);
+                return;
+            }
+            String name;
+            switch (error) {
+                case SpeechRecognizer.ERROR_NETWORK: case SpeechRecognizer.ERROR_NETWORK_TIMEOUT: name = "network"; break;
+                case SpeechRecognizer.ERROR_SERVER: name = "server"; break;
+                case SpeechRecognizer.ERROR_AUDIO: name = "audio"; break;
+                case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS: name = "no-permission"; break;
+                case SpeechRecognizer.ERROR_RECOGNIZER_BUSY: name = "busy"; break;
+                case SpeechRecognizer.ERROR_CLIENT: name = "client"; break;
+                case 12: name = "language-not-supported"; break;
+                case 13: name = "language-unavailable"; break;
+                default: name = "error-" + error;
+            }
+            cloudError(error, name);
+        }
+    };
 }
