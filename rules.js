@@ -39,7 +39,7 @@ export function classify(text) {
   const t = text.toLowerCase();
   const threats = Object.keys(TRX).filter(k => has(TRX[k], t));
   // "200 метрів" — це відстань, а не втрати
-  if (threats.includes('Втрати / евакуація') && /(?:200|300)\s*(?:м$|м[ .,]|метр|кілом|килом|m$|m[ .,]|met)/iu.test(t) && !/поранен|ранен|евак|эвак|вакуац|сот[иі]й|сотих|сотого/iu.test(t))
+  if (threats.includes('Втрати / евакуація') && /(?:200|300|двісті|двести|триста)\s*(?:м$|м[ .,]|метр|кілом|килом|m$|m[ .,]|met)/iu.test(t) && !/поранен|ранен|евак|эвак|вакуац|сот[иі]й|сотих|сотого/iu.test(t))
     threats.splice(threats.indexOf('Втрати / евакуація'), 1);
   let cat = 'noise';
   if (threats.length || has(RX.critx, t)) cat = 'crit';
@@ -56,7 +56,7 @@ const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&
 // Підсвічування сутностей: загроза / позивний / число-час-координата
 export function highlight(text, callsigns = []) {
   const marks = [];
-  const add = (r, cls) => { r.lastIndex = 0; let m; while ((m = r.exec(text))) { if (m[0].length && !(cls === 'e-thr' && /^[23]00$/.test(m[0]) && /^\s*(?:м|метр|кілом|килом)/iu.test(text.slice(m.index + 3)))) marks.push([m.index, m.index + m[0].length, cls]); else r.lastIndex++; } };
+  const add = (r, cls) => { r.lastIndex = 0; let m; while ((m = r.exec(text))) { if (m[0].length && !(cls === 'e-thr' && /^(?:[23]00|двісті|двести|триста)$/iu.test(m[0]) && /^\s*(?:м$|м[ .,]|метр|кілом|килом)/iu.test(text.slice(m.index + m[0].length)))) marks.push([m.index, m.index + m[0].length, cls]); else r.lastIndex++; } };
   add(RX.crit, 'e-thr');
   if (callsigns.length) add(rx(callsigns.map(c => c.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))), 'e-call');
   add(RX.coord, 'e-loc');

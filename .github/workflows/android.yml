@@ -33,8 +33,23 @@ jobs:
           mkdir -p native/ggml
           B=https://huggingface.co/ggerganov/whisper.cpp/resolve/main
           curl -fsSL "$B/ggml-base-q5_1.bin" -o native/ggml/ggml-base.bin || curl -fsSL "$B/ggml-base.bin" -o native/ggml/ggml-base.bin
-          curl -fsSL "$B/ggml-tiny-q5_1.bin" -o native/ggml/ggml-tiny.bin || curl -fsSL "$B/ggml-tiny.bin" -o native/ggml/ggml-tiny.bin
           ls -la native/ggml
+
+      - name: Швидкий рушій Moonshine (sherpa-onnx) і моделі UA, EN
+        run: |
+          trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
+          SV=v2.0.2
+          R=https://github.com/k2-fsa/sherpa-onnx/releases/download
+          git clone -q --depth 1 --branch $SV https://github.com/k2-fsa/sherpa-onnx native/sherpa-src
+          curl -fsSL "$R/$SV/sherpa-onnx-$SV-android.tar.bz2" | tar xj -C native
+          ls -la native/jniLibs/arm64-v8a native/jniLibs/x86_64
+          for L in uk:base en:tiny; do
+            lang=${L%%:*}; size=${L##*:}; D=sherpa-onnx-moonshine-$size-$lang-quantized-2026-02-27
+            curl -fsSL "$R/asr-models/$D.tar.bz2" | tar xj -C native
+            mkdir -p native/moon/$lang
+            cp native/$D/encoder_model.ort native/$D/decoder_model_merged.ort native/$D/tokens.txt native/moon/$lang/
+          done
+          ls -la native/moon/*
 
       - name: Capacitor → Android-проєкт
         working-directory: native
@@ -56,6 +71,14 @@ jobs:
           mkdir -p android/app/src/main/cpp android/app/src/main/assets/ggml
           cp android-src/cpp/* android/app/src/main/cpp/
           cp ggml/*.bin android/app/src/main/assets/ggml/
+          # швидкий рушій: Java-обгортка sherpa-onnx, готові бібліотеки, моделі Moonshine
+          mkdir -p android/app/src/main/java/com/k2fsa/sherpa/onnx android/app/src/main/assets/moon
+          cp sherpa-src/sherpa-onnx/java-api/src/main/java/com/k2fsa/sherpa/onnx/*.java android/app/src/main/java/com/k2fsa/sherpa/onnx/
+          for A in arm64-v8a x86_64; do
+            mkdir -p android/app/src/main/jniLibs/$A
+            cp jniLibs/$A/libsherpa-onnx-jni.so jniLibs/$A/libonnxruntime.so android/app/src/main/jniLibs/$A/
+          done
+          cp -r moon/. android/app/src/main/assets/moon/
           NDKV=$(basename "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}")
           NDKLINE=""; if [ -n "$NDKV" ]; then NDKLINE="ndkVersion '$NDKV'"; fi
           echo "NDK: $NDKV"
@@ -63,7 +86,7 @@ jobs:
 
           android {
               $NDKLINE
-              androidResources { noCompress += ["onnx", "wasm", "bin"] }
+              androidResources { noCompress += ["onnx", "wasm", "bin", "ort"] }
               defaultConfig {
                   ndk { abiFilters "arm64-v8a", "x86_64" }
                   externalNativeBuild { cmake { arguments "-DWHISPER_DIR=$PWD/whisper.cpp" } }
@@ -79,21 +102,11 @@ jobs:
           trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
           ./gradlew --no-daemon assembleDebug 2>&1 | tee build.log || { grep -E "error:|FAILED|What went wrong|^> " build.log | head -8 | while read l; do echo "::error::$l"; done; exit 1; }
 
-      - name: Опублікувати APK
+      - name: Зберегти APK
         run: |
           trap 'echo "::error::Збій на команді: $BASH_COMMAND"' ERR
           cp native/android/app/build/outputs/apk/debug/app-debug.apk efir-ai.apk
           ls -la efir-ai.apk
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk-latest
-          name: Ефір-ШІ — Android APK (остання збірка)
-          body: |
-            Тестова збірка прототипу. Встановлення: завантажте `efir-ai.apk` на Android і відкрийте файл (дозвольте встановлення з цього джерела).
-            Модель розпізнавання вже всередині — мережа не потрібна. Перед оновленням видаліть попередню версію.
-          files: efir-ai.apk
-          make_latest: true
-
       - name: Тестова збірка із самоперевіркою
         working-directory: native/android
         run: |
@@ -117,3 +130,16 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: bash native/emutest.sh efir-ai-test.apk
+      - name: Опублікувати APK (лише після успішної перевірки на емуляторі)
+        if: hashFiles('emu-ok') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Ефір-ШІ — Android APK (остання збірка)
+          body: |
+            Тестова збірка прототипу. Встановлення: завантажте `efir-ai.apk` на Android і відкрийте файл (дозвольте встановлення з цього джерела).
+            Моделі розпізнавання (швидка Moonshine для UA та EN, Whisper як запасна) вже всередині — мережа не потрібна. Перед оновленням видаліть попередню версію.
+          files: efir-ai.apk
+          make_latest: true
+      - name: Підсумок перевірки
+        run: test -f emu-ok || { echo "::error::Перевірка на емуляторі не пройдена — APK не опубліковано"; exit 1; }

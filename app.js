@@ -24,7 +24,7 @@ const I = {
     recog: 'розпізнаю…', text: 'ТЕКСТ', s: 'с', c10: '10 хв', c30: '30 хв', c60: '1 год', c120: '2 год', call: 'Всі',
     copy: 'Копіювати', share: 'Поділитися', copied: 'Скопійовано', copyFail: 'Не вдалося скопіювати — виділіть текст вручну',
     setTitle: 'Тест і налаштування', lTest: 'ТЕСТ БЕЗ РАДІОСТАНЦІЇ', demo: 'Демо-запис', file: 'Аудіофайл…', manualPh: 'Або введіть повідомлення текстом, по одному в рядку', addText: 'Додати текст у стрічку',
-    lModel: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', mTiny: 'Tiny — найшвидша, найменша', mBase: 'Base — баланс, ≈ 200 МБ', mSmall: 'Small — точніша, найбільша',
+    lModel: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', mTiny: 'Tiny — найшвидша, найменша', mBase: 'Base — баланс, ≈ 200 МБ', mSmall: 'Small — точніша, найбільша', mFast: 'Швидка — рекомендовано (UA, EN)', mWhisper: 'Whisper — повільніша, запасна', fastPill: 'ШВИДКА', autoSlow: 'АВТО та російська працюють на повільнішій моделі. Для швидкості оберіть UA або EN.',
     lLang: 'МОВА ЕФІРУ', spUk: 'Українська', spEn: 'Англійська', spRu: 'Російська (ефір противника)', spAuto: 'Визначати автоматично',
     lCalls: 'ПОЗИВНІ (ЧЕРЕЗ КОМУ)', lKeep: 'ЗБЕРІГАТИ ЗАПИСИ', k24: '24 години', k48: '48 годин', k72: '72 години', lData: 'ДАНІ', export: 'Експорт JSON', wipe: '⚠ СТЕРТИ ВСЕ', wipe2: 'НАТИСНІТЬ ЩЕ РАЗ — СТЕРТИ БЕЗПОВОРОТНО', wiped: 'Журнал і записи стерто',
     aboutWeb: 'Розпізнавання і всі дані — лише на цьому пристрої. Мережа потрібна один раз, щоб завантажити модель.', aboutNative: 'Розпізнавання і всі дані — лише на цьому пристрої. Модель вбудована, мережа не потрібна.',
@@ -46,7 +46,7 @@ const I = {
     recog: 'transcribing…', text: 'TEXT', s: 's', c10: '10 min', c30: '30 min', c60: '1 h', c120: '2 h', call: 'All',
     copy: 'Copy', share: 'Share', copied: 'Copied', copyFail: 'Could not copy — select the text manually',
     setTitle: 'Test & settings', lTest: 'TEST WITHOUT A RADIO', demo: 'Demo recording', file: 'Audio file…', manualPh: 'Or type messages as text, one per line', addText: 'Add text to the feed',
-    lModel: 'SPEECH MODEL', mTiny: 'Tiny — fastest, smallest', mBase: 'Base — balanced, ≈ 200 MB', mSmall: 'Small — more accurate, largest',
+    lModel: 'SPEECH MODEL', mTiny: 'Tiny — fastest, smallest', mBase: 'Base — balanced, ≈ 200 MB', mSmall: 'Small — more accurate, largest', mFast: 'Fast — recommended (UA, EN)', mWhisper: 'Whisper — slower, fallback', fastPill: 'FAST', autoSlow: 'AUTO and Russian use the slower model. Pick UA or EN for speed.',
     lLang: 'RADIO LANGUAGE', spUk: 'Ukrainian', spEn: 'English', spRu: 'Russian (enemy traffic)', spAuto: 'Detect automatically',
     lCalls: 'CALLSIGNS (COMMA-SEPARATED)', lKeep: 'KEEP RECORDS FOR', k24: '24 hours', k48: '48 hours', k72: '72 hours', lData: 'DATA', export: 'Export JSON', wipe: '⚠ ERASE EVERYTHING', wipe2: 'TAP AGAIN — ERASE FOR GOOD', wiped: 'Log and recordings erased',
     aboutWeb: 'Recognition and all data stay on this device. A network is needed once, to download the model.', aboutNative: 'Recognition and all data stay on this device. The model is built in; no network needed.',
@@ -166,7 +166,9 @@ let worker = null, modelState = 'none', modelWait = null, device = '';
 const CAP = window.Capacitor;
 let useNative = NATIVE && !!(CAP && CAP.isPluginAvailable && CAP.isPluginAvailable('Whisper'));
 const nat = (m, o) => (CAP.Plugins && CAP.Plugins.Whisper && CAP.Plugins.Whisper[m]) ? CAP.Plugins.Whisper[m](o) : CAP.nativePromise('Whisper', m, o);
-const nativeModel = () => /tiny/.test(set.model) ? 'tiny' : 'base';
+const nativeModel = () => set.neng === 'whisper' ? 'whisper' : 'fast';
+let natEngine = '';
+const natSlow = () => useNative && (nativeModel() === 'whisper' || !/^(uk|en)$/.test(set.lang));
 function pcmB64(f) {
   const b = new Uint8Array(f.length * 2), v = new DataView(b.buffer);
   for (let i = 0; i < f.length; i++) v.setInt16(i * 2, Math.max(-1, Math.min(1, f[i])) * 32767, true);
@@ -177,8 +179,9 @@ async function loadNative() {
   modelState = 'loading'; pill();
   $('#load').classList.add('on'); $('#loadTxt').textContent = L().loadNative; $('#loadBar').style.width = '60%';
   try {
-    const r = await nat('load', { model: nativeModel() });
-    log(`нативний рушій готовий: ${nativeModel()}, ${r.ms} мс, потоків ${r.threads}`);
+    const r = await nat('load', { model: nativeModel(), lang: set.lang });
+    natEngine = r.engine || '';
+    log(`нативний рушій готовий: ${natEngine}, ${r.ms} мс, потоків ${r.threads}` + (r.note ? ` · швидкий не запустився: ${r.note}` : ''));
     modelState = 'ready'; device = 'native'; pill(); $('#load').classList.remove('on');
   } catch (e) {
     log('нативний рушій не запустився: ' + (e && e.message || e) + ' — перехід на резервний');
@@ -192,7 +195,7 @@ function pill() {
   const p = $('#pModel');
   if (engine() === 'cloud') { p.className = 'pill bad'; p.textContent = L().cloudPill; }
   else p.className = 'pill ' + (modelState === 'ready' ? 'ok' : modelState === 'error' ? 'bad' : modelState === 'loading' ? 'warn' : '');
-  if (engine() !== 'cloud') p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : device === 'native' ? 'NATIVE' : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
+  if (engine() !== 'cloud') p.textContent = L().model + (modelState === 'ready' ? ` · ${device === 'webgpu' ? 'GPU' : device === 'native' ? (/^moonshine/.test(natEngine) ? L().fastPill : 'WHISPER') : 'CPU'}` : modelState === 'loading' ? ' ↓' : modelState === 'error' ? ' ✕' : ' —');
   const n = $('#pNet'); n.className = 'pill ' + (navigator.onLine ? '' : 'ok'); n.textContent = navigator.onLine ? L().net : L().off;
   const m = $('#pMic'); m.className = 'pill ' + (live ? 'ok' : ''); m.textContent = live ? L().micOn + (inputLabel ? ' · ' + inputLabel.replace(/\s*\(.*?\)\s*/g, ' ').trim().slice(0, 18) : '') : L().mic + ' —';
 }
@@ -232,6 +235,7 @@ function transcribe(audio16k, t) {
   msgs.push(ph); render();
   return new Promise((res) => {
     jobs.set(ph.id, (text, ms) => {
+      text = (text || '').trim(); if (text) text = text[0].toUpperCase() + text.slice(1);
       msgs = msgs.filter(x => x !== ph);
       const ok = text && !EMPTY.test(text) && !JUNK.test(text);
       const m = ok ? addText(text, t, dur, wav) : null;
@@ -240,8 +244,8 @@ function transcribe(audio16k, t) {
     });
     if (device === 'native') {
       const t0 = performance.now();
-      nat('transcribe', { pcm: pcmB64(audio16k), lang: set.lang }).then(
-        (r) => { const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j(r.text || '', r.ms || Math.round(performance.now() - t0)); },
+      nat('transcribe', { pcm: pcmB64(audio16k), lang: set.lang, model: nativeModel() }).then(
+        (r) => { if (r.engine && r.engine !== natEngine) { natEngine = r.engine; log('рушій: ' + natEngine); pill(); } const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j(r.text || '', r.ms || Math.round(performance.now() - t0)); },
         (e) => { log('помилка розпізнавання: ' + (e && e.message || e)); const j = jobs.get(ph.id); jobs.delete(ph.id); if (j) j('', 0); });
       return;
     }
@@ -534,14 +538,20 @@ async function fillInputs() {
   $('#inNote').textContent = live && inputLabel ? L().inNow + inputLabel : L().inIdle;
 }
 const restart = () => { if (live) { stop(); start(); } };
+function warm() {
+  if (!useNative) return;
+  if (natSlow() && nativeModel() === 'fast') toast(L().autoSlow, 7000);
+  if (modelState !== 'ready') return;
+  nat('load', { model: nativeModel(), lang: set.lang }).then((r) => { natEngine = r.engine || natEngine; log(`рушій: ${natEngine}, ${r.ms} мс`); pill(); }, (e) => log('рушій не перемкнувся: ' + (e && e.message || e)));
+}
 $('#sInput').onchange = (e) => { set.input = e.target.value; saveSet(); restart(); };
 $('#sMode').onchange = (e) => { set.mode = e.target.value; saveSet(); restart(); };
 if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => { log('змінився набір аудіопристроїв'); if ($('#shSet').classList.contains('on')) fillInputs(); });
-$('#bSet').onclick = () => { fillInputs(); $('#sModel').value = set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#bWipe').classList.remove('arm'); $('#shSet').classList.add('on'); };
-$('#sModel').onchange = (e) => { set.model = e.target.value; saveSet(); modelState = 'none'; modelWait = null; pill(); toast(L().newModel, 5000); };
-$('#sLang').onchange = (e) => { set.lang = e.target.value; saveSet(); applyLang(); };
+$('#bSet').onclick = () => { fillInputs(); $('#sModel').value = NATIVE ? nativeModel() : set.model; $('#sLang').value = set.lang; $('#sCalls').value = set.calls; $('#sKeep').value = String(set.keep); wipeArm = false; $('#bWipe').textContent = L().wipe; $('#bWipe').classList.remove('arm'); $('#shSet').classList.add('on'); };
+$('#sModel').onchange = (e) => { if (NATIVE) { set.neng = e.target.value; saveSet(); warm(); return; } set.model = e.target.value; saveSet(); modelState = 'none'; modelWait = null; pill(); toast(L().newModel, 5000); };
+$('#sLang').onchange = (e) => { set.lang = e.target.value; saveSet(); applyLang(); warm(); };
 $('#eng').onclick = (e) => { const b = e.target.closest('.chip'); if (!b || b.dataset.e === set.engine) return; const was = live; if (was) stop(); set.engine = b.dataset.e; saveSet(); applyLang(); if (set.engine === 'cloud') toast(L().cloudWarn, 9000); if (was) start(); };
-$('#spk').onclick = (e) => { const b = e.target.closest('.chip'); if (!b) return; set.lang = b.dataset.l; saveSet(); applyLang(); };
+$('#spk').onclick = (e) => { const b = e.target.closest('.chip'); if (!b || b.dataset.l === set.lang) return; set.lang = b.dataset.l; saveSet(); applyLang(); warm(); };
 $('#sCalls').onchange = (e) => { set.calls = e.target.value; saveSet(); render(); };
 $('#sKeep').onchange = (e) => { set.keep = +e.target.value; saveSet(); prune(); };
 let wipeArm = false;
@@ -559,18 +569,31 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
   db = await openDB();
   msgs = await dbAll();
   msgs.forEach(m => seen.add(m.id));
-  if (NATIVE) { const sm = $('#sModel option[value$="small"]'); if (sm) sm.remove(); if (/small/.test(set.model)) set.model = 'onnx-community/whisper-base'; }
+  if (NATIVE) $('#sModel').innerHTML = '<option value="fast" data-i="mFast"></option><option value="whisper" data-i="mWhisper"></option>';
   prune(); applyLang();
   setInterval(() => { prune(); if (!player || player.paused) render(); else renderSum(); }, 30000);
   addEventListener('online', pill); addEventListener('offline', pill);
   document.addEventListener('visibilitychange', async () => { if (live && document.visibilityState === 'visible' && !lock) try { lock = await navigator.wakeLock.request('screen'); } catch (e) {} });
   if (!NATIVE && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-  log(`запуск · ${NATIVE ? 'застосунок' : 'браузер'} · ${navigator.userAgent.replace(/^.*?(Android [^;)]+).*?(Chrome\/[\d.]+).*$/, '$1 · $2')} · GPU ${'gpu' in navigator ? 'є' : 'немає'} · рушій ${useNative ? 'нативний whisper.cpp' : 'JavaScript'}`);
+  log(`запуск · ${NATIVE ? 'застосунок' : 'браузер'} · ${navigator.userAgent.replace(/^.*?(Android [^;)]+).*?(Chrome\/[\d.]+).*$/, '$1 · $2')} · GPU ${'gpu' in navigator ? 'є' : 'немає'} · рушій ${useNative ? 'нативний (Moonshine + whisper.cpp)' : 'JavaScript'}`);
   // самоперевірка для автоматичного тесту збірки
   fetch('autotest.json').then(r => r.ok ? r.json() : null).then(async (cfg) => {
     if (!cfg) return;
     try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); console.log('EFIR_MIC ok ' + (s.getAudioTracks()[0].label || '')); s.getTracks().forEach(t => t.stop()); } catch (e) { console.log('EFIR_MIC fail ' + e.name + ': ' + e.message); }
-    try { const r = await fetch('demo/demo.mp3'); const t0 = performance.now(); await runFile(await r.arrayBuffer(), 'autotest'); const out = msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => m.text); const done = msgs.filter(m => !m.pending && m.ms); const audio = done.reduce((a, m) => a + (m.dur || 0), 0), work = done.reduce((a, m) => a + m.ms, 0) / 1000; console.log('EFIR_RESULT ' + JSON.stringify({ state: modelState, device, n: out.length, sec: Math.round((performance.now() - t0) / 1000), audioSec: Math.round(audio), workSec: +work.toFixed(1), avgMsPerMsg: done.length ? Math.round(work * 1000 / done.length) : 0, first: out.slice(0, 3) })); }
+    try {
+      const buf = await (await fetch('demo/demo.mp3')).arrayBuffer();
+      const pass = async (eng) => {
+        set.neng = eng; msgs = []; modelState = 'none'; modelWait = null;
+        const t0 = performance.now(); await runFile(buf.slice(0), 'autotest');
+        const out = msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => m.text);
+        const done = msgs.filter(m => !m.pending && m.ms);
+        const audio = done.reduce((a, m) => a + (m.dur || 0), 0), work = done.reduce((a, m) => a + m.ms, 0) / 1000;
+        return { engine: natEngine || device, n: out.length, sec: Math.round((performance.now() - t0) / 1000), audioSec: Math.round(audio), workSec: +work.toFixed(1), avgMsPerMsg: done.length ? Math.round(work * 1000 / done.length) : 0, cats: msgs.filter(m => !m.pending).map(m => m.cat).join(','), text: out };
+      };
+      const fast = await pass('fast');
+      console.log('EFIR_RESULT ' + JSON.stringify(fast));
+      if (useNative) { const old = await pass('whisper'); console.log('EFIR_OLD ' + JSON.stringify(old)); }
+    }
     catch (e) { console.log('EFIR_RESULT fail ' + e.message); }
     console.log('EFIR_DIAG ' + diag.join(' || '));
   }).catch(() => {});
