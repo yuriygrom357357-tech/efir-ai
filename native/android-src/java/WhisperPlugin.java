@@ -21,6 +21,7 @@ import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,11 +33,19 @@ import java.util.concurrent.Executors;
 @CapacitorPlugin(name = "Whisper")
 public class WhisperPlugin extends Plugin {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    /** Два потоки для швидкої моделі: два повідомлення розпізнаються одночасно. */
+    private final ExecutorService fast = Executors.newFixedThreadPool(2);
+    private final Object wlock = new Object();
     private long ctx = 0;
     private String loaded = "";
-    private final Map<String, OfflineRecognizer> moon = new HashMap<>();
+    private final Map<String, ArrayBlockingQueue<OfflineRecognizer>> moon = new HashMap<>();
     private boolean moonBroken = false;
     private String moonError = "";
+
+    /** Скільки копій швидкої моделі тримати: дві, якщо ядер вистачає. */
+    private int copies() {
+        return Runtime.getRuntime().availableProcessors() >= 4 ? 2 : 1;
+    }
 
     private int threads() {
         int n = Runtime.getRuntime().availableProcessors();
@@ -70,7 +79,7 @@ public class WhisperPlugin extends Plugin {
         return "whisper-base";
     }
 
-    private void ensureWhisper() throws Exception {
+    private synchronized void ensureWhisper() throws Exception {
         if (ctx != 0) return;
         File out = copyAsset("ggml/ggml-base.bin", "ggml-base.bin");
         ctx = WhisperBridge.init(out.getAbsolutePath());
@@ -78,25 +87,26 @@ public class WhisperPlugin extends Plugin {
         loaded = "base";
     }
 
-    private OfflineRecognizer ensureMoon(String lang) throws Exception {
-        OfflineRecognizer r = moon.get(lang);
-        if (r != null) return r;
+    private synchronized ArrayBlockingQueue<OfflineRecognizer> ensureMoon(String lang) throws Exception {
+        ArrayBlockingQueue<OfflineRecognizer> q = moon.get(lang);
+        if (q != null) return q;
         File enc = copyAsset("moon/" + lang + "/encoder_model.ort", "moon-" + lang + "-encoder.ort");
         File dec = copyAsset("moon/" + lang + "/decoder_model_merged.ort", "moon-" + lang + "-decoder.ort");
         File tok = copyAsset("moon/" + lang + "/tokens.txt", "moon-" + lang + "-tokens.txt");
         OfflineMoonshineModelConfig m = OfflineMoonshineModelConfig.builder()
                 .setEncoder(enc.getAbsolutePath()).setMergedDecoder(dec.getAbsolutePath()).build();
         OfflineModelConfig mc = OfflineModelConfig.builder()
-                .setMoonshine(m).setTokens(tok.getAbsolutePath()).setNumThreads(threads()).setDebug(false).setProvider("cpu").build();
+                .setMoonshine(m).setTokens(tok.getAbsolutePath()).setNumThreads(copies() > 1 ? 2 : threads()).setDebug(false).setProvider("cpu").build();
         OfflineRecognizerConfig cfg = OfflineRecognizerConfig.builder()
                 .setOfflineModelConfig(mc).setDecodingMethod("greedy_search").build();
-        r = new OfflineRecognizer(cfg);
-        moon.put(lang, r);
-        return r;
+        q = new ArrayBlockingQueue<>(copies());
+        for (int i = 0; i < copies(); i++) q.add(new OfflineRecognizer(cfg));
+        moon.put(lang, q);
+        return q;
     }
 
     /** Підготувати рушій; якщо швидкий не запустився — перейти на Whisper і запам'ятати причину. */
-    private String ensure(String model, String lang) throws Exception {
+    private synchronized String ensure(String model, String lang) throws Exception {
         String e = pick(model, lang);
         if (e.startsWith("moonshine-")) {
             try { ensureMoon(lang); return e; }
@@ -117,6 +127,7 @@ public class WhisperPlugin extends Plugin {
                 JSObject r = new JSObject();
                 r.put("ms", System.currentTimeMillis() - t0);
                 r.put("threads", threads());
+                r.put("copies", engine.startsWith("moonshine-") ? copies() : 1);
                 r.put("engine", engine);
                 r.put("note", moonError);
                 call.resolve(r);
@@ -171,7 +182,8 @@ public class WhisperPlugin extends Plugin {
         final String b64 = call.getString("pcm", "");
         final String lang = call.getString("lang", "uk");
         final String model = call.getString("model", "fast");
-        worker.execute(() -> {
+        // швидка модель працює у двох потоках, Whisper — в одному
+        (pick(model, lang).startsWith("moonshine-") ? fast : worker).execute(() -> {
             try {
                 String engine = ensure(model, lang);
                 byte[] raw = Base64.decode(b64, Base64.DEFAULT);
@@ -182,23 +194,27 @@ public class WhisperPlugin extends Plugin {
                 String text;
                 boolean rescued = false;
                 if (engine.startsWith("moonshine-")) {
-                    OfflineRecognizer rec = ensureMoon(lang);
-                    OfflineStream st = rec.createStream();
+                    ArrayBlockingQueue<OfflineRecognizer> q = ensureMoon(lang);
+                    OfflineRecognizer rec = q.take();
                     try {
-                        st.acceptWaveform(tighten(audio), 16000);
-                        rec.decode(st);
-                        text = rec.getResult(st).getText();
-                    } finally { st.release(); }
+                        OfflineStream st = rec.createStream();
+                        try {
+                            st.acceptWaveform(tighten(audio), 16000);
+                            rec.decode(st);
+                            text = rec.getResult(st).getText();
+                        } finally { st.release(); }
+                    } finally { q.put(rec); }
                     // підозрілий результат перевіряємо повільнішою моделлю
                     if (suspicious(text, audio.length / 16000f)) {
                         try {
                             ensureWhisper();
-                            String w = WhisperBridge.transcribe(ctx, audio, lang, threads());
+                            String w;
+                            synchronized (wlock) { w = WhisperBridge.transcribe(ctx, audio, lang, threads()); }
                             if (w != null) { text = w; rescued = true; }
                         } catch (Throwable ignore) { }
                     }
                 } else {
-                    text = WhisperBridge.transcribe(ctx, audio, lang, threads());
+                    synchronized (wlock) { text = WhisperBridge.transcribe(ctx, audio, lang, threads()); }
                 }
                 if (text == null) { call.reject("transcribe failed"); return; }
                 JSObject r = new JSObject();

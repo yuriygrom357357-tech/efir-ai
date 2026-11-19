@@ -24,7 +24,7 @@ const I = {
     recog: 'розпізнаю…', text: 'ТЕКСТ', s: 'с', c10: '10 хв', c30: '30 хв', c60: '1 год', c120: '2 год', call: 'Всі',
     copy: 'Копіювати', share: 'Поділитися', copied: 'Скопійовано', copyFail: 'Не вдалося скопіювати — виділіть текст вручну',
     setTitle: 'Тест і налаштування', lTest: 'ТЕСТ БЕЗ РАДІОСТАНЦІЇ', demo: 'Демо-запис', file: 'Аудіофайл…', manualPh: 'Або введіть повідомлення текстом, по одному в рядку', addText: 'Додати текст у стрічку',
-    lModel: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', mTiny: 'Tiny — найшвидша, найменша', mBase: 'Base — баланс, ≈ 200 МБ', mSmall: 'Small — точніша, найбільша', mFast: 'Швидка — рекомендовано (UA, EN)', mWhisper: 'Whisper — повільніша, запасна', fastPill: 'ШВИДКА', autoSlow: 'АВТО та російська працюють на повільнішій моделі. Для швидкості оберіть UA або EN.',
+    lModel: 'МОДЕЛЬ РОЗПІЗНАВАННЯ', mTiny: 'Tiny — найшвидша, найменша', mBase: 'Base — баланс, ≈ 200 МБ', mSmall: 'Small — точніша, найбільша', mFast: 'Швидка — рекомендовано (UA, EN)', mWhisper: 'Whisper — повільніша, запасна', fastPill: 'ШВИДКА', fastFail: 'Швидка модель не запустилась, працює Whisper. Причина:', autoSlow: 'АВТО та російська працюють на повільнішій моделі. Для швидкості оберіть UA або EN.',
     lLang: 'МОВА ЕФІРУ', spUk: 'Українська', spEn: 'Англійська', spRu: 'Російська (ефір противника)', spAuto: 'Визначати автоматично',
     lCalls: 'ПОЗИВНІ (ЧЕРЕЗ КОМУ)', lKeep: 'ЗБЕРІГАТИ ЗАПИСИ', k24: '24 години', k48: '48 годин', k72: '72 години', lData: 'ДАНІ', export: 'Експорт JSON', wipe: '⚠ СТЕРТИ ВСЕ', wipe2: 'НАТИСНІТЬ ЩЕ РАЗ — СТЕРТИ БЕЗПОВОРОТНО', wiped: 'Журнал і записи стерто',
     aboutWeb: 'Розпізнавання і всі дані — лише на цьому пристрої. Мережа потрібна один раз, щоб завантажити модель.', aboutNative: 'Розпізнавання і всі дані — лише на цьому пристрої. Модель вбудована, мережа не потрібна.',
@@ -46,7 +46,7 @@ const I = {
     recog: 'transcribing…', text: 'TEXT', s: 's', c10: '10 min', c30: '30 min', c60: '1 h', c120: '2 h', call: 'All',
     copy: 'Copy', share: 'Share', copied: 'Copied', copyFail: 'Could not copy — select the text manually',
     setTitle: 'Test & settings', lTest: 'TEST WITHOUT A RADIO', demo: 'Demo recording', file: 'Audio file…', manualPh: 'Or type messages as text, one per line', addText: 'Add text to the feed',
-    lModel: 'SPEECH MODEL', mTiny: 'Tiny — fastest, smallest', mBase: 'Base — balanced, ≈ 200 MB', mSmall: 'Small — more accurate, largest', mFast: 'Fast — recommended (UA, EN)', mWhisper: 'Whisper — slower, fallback', fastPill: 'FAST', autoSlow: 'AUTO and Russian use the slower model. Pick UA or EN for speed.',
+    lModel: 'SPEECH MODEL', mTiny: 'Tiny — fastest, smallest', mBase: 'Base — balanced, ≈ 200 MB', mSmall: 'Small — more accurate, largest', mFast: 'Fast — recommended (UA, EN)', mWhisper: 'Whisper — slower, fallback', fastPill: 'FAST', fastFail: 'Fast model failed to start, using Whisper. Reason:', autoSlow: 'AUTO and Russian use the slower model. Pick UA or EN for speed.',
     lLang: 'RADIO LANGUAGE', spUk: 'Ukrainian', spEn: 'English', spRu: 'Russian (enemy traffic)', spAuto: 'Detect automatically',
     lCalls: 'CALLSIGNS (COMMA-SEPARATED)', lKeep: 'KEEP RECORDS FOR', k24: '24 hours', k48: '48 hours', k72: '72 hours', lData: 'DATA', export: 'Export JSON', wipe: '⚠ ERASE EVERYTHING', wipe2: 'TAP AGAIN — ERASE FOR GOOD', wiped: 'Log and recordings erased',
     aboutWeb: 'Recognition and all data stay on this device. A network is needed once, to download the model.', aboutNative: 'Recognition and all data stay on this device. The model is built in; no network needed.',
@@ -181,7 +181,8 @@ async function loadNative() {
   try {
     const r = await nat('load', { model: nativeModel(), lang: set.lang });
     natEngine = r.engine || '';
-    log(`нативний рушій готовий: ${natEngine}, ${r.ms} мс, потоків ${r.threads}` + (r.note ? ` · швидкий не запустився: ${r.note}` : ''));
+    log(`нативний рушій готовий: ${natEngine}, ${r.ms} мс, потоків ${r.threads}, копій ${r.copies || 1}` + (r.note ? ` · швидкий не запустився: ${r.note}` : ''));
+    if (r.note && nativeModel() === 'fast') toast(L().fastFail + ' ' + String(r.note).slice(0, 160), 15000);
     modelState = 'ready'; device = 'native'; pill(); $('#load').classList.remove('on');
   } catch (e) {
     log('нативний рушій не запустився: ' + (e && e.message || e) + ' — перехід на резервний');
@@ -401,7 +402,12 @@ async function runFile(buf, label) {
     toast(L().fRun(label, segs.length), 60000);
     const t0 = Date.now() - segs.length * 1000;
     const t1 = performance.now(); let audioSec = 0;
-    for (let i = 0; i < segs.length; i++) { audioSec += segs[i].length / 16000; await transcribe(segs[i], t0 + i * 1000); }
+    segs.forEach(a => { audioSec += a.length / 16000; });
+    // у застосунку два повідомлення розпізнаються одночасно
+    let next = 0;
+    const lane = async () => { while (next < segs.length) { const i = next++; await transcribe(segs[i], t0 + i * 1000); } };
+    await Promise.all(useNative ? [lane(), lane()] : [lane()]);
+    window.__runSec = +((performance.now() - t1) / 1000).toFixed(1);
     toast(L().fDone(label, audioSec.toFixed(0), ((performance.now() - t1) / 1000).toFixed(1)), 9000);
   } catch (e) { toast(`${label}: ` + (e && e.message || e), 9000); }
 }
@@ -588,7 +594,7 @@ function prune() { const lim = Date.now() - set.keep * 3600000; const old = msgs
         const out = msgs.filter(m => !m.pending).sort((a, b) => a.t - b.t).map(m => m.text);
         const done = msgs.filter(m => !m.pending && m.ms);
         const audio = done.reduce((a, m) => a + (m.dur || 0), 0), work = done.reduce((a, m) => a + m.ms, 0) / 1000;
-        return { engine: natEngine || device, n: out.length, sec: Math.round((performance.now() - t0) / 1000), audioSec: Math.round(audio), workSec: +work.toFixed(1), avgMsPerMsg: done.length ? Math.round(work * 1000 / done.length) : 0, cats: msgs.filter(m => !m.pending).map(m => m.cat).join(','), text: out };
+        return { engine: natEngine || device, n: out.length, runSec: window.__runSec, sec: Math.round((performance.now() - t0) / 1000), audioSec: Math.round(audio), workSec: +work.toFixed(1), avgMsPerMsg: done.length ? Math.round(work * 1000 / done.length) : 0, cats: msgs.filter(m => !m.pending).map(m => m.cat).join(','), text: out };
       };
       const fast = await pass('fast');
       console.log('EFIR_RESULT ' + JSON.stringify(fast));
